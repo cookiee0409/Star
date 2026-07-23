@@ -1,0 +1,158 @@
+import { CONFIG, isValidNickname, sanitizeNickname } from "@starfall/shared";
+
+type StatusTone = "idle" | "connecting" | "online" | "error";
+
+function requireElement<T extends HTMLElement>(id: string): T {
+  const element = document.getElementById(id);
+  if (!element) {
+    throw new Error(`Required UI element #${id} was not found.`);
+  }
+  return element as T;
+}
+
+export class UIController {
+  private readonly startScreen = requireElement<HTMLElement>("start-screen");
+  private readonly gameUI = requireElement<HTMLElement>("game-ui");
+  private readonly joinForm = requireElement<HTMLFormElement>("join-form");
+  private readonly nicknameInput = requireElement<HTMLInputElement>("nickname");
+  private readonly nicknameCount = requireElement<HTMLElement>("nickname-count");
+  private readonly formError = requireElement<HTMLElement>("form-error");
+  private readonly playButton = requireElement<HTMLButtonElement>("play-button");
+  private readonly connectionDot = requireElement<HTMLElement>("connection-dot");
+  private readonly connectionStatus =
+    requireElement<HTMLElement>("connection-status");
+  private readonly hudNickname = requireElement<HTMLElement>("hud-nickname");
+  private readonly hudScore = requireElement<HTMLElement>("hud-score");
+  private readonly hudPlayers = requireElement<HTMLElement>("hud-players");
+  private readonly hudTimer = requireElement<HTMLElement>("hud-timer");
+  private readonly collectPrompt = requireElement<HTMLElement>("collect-prompt");
+  private readonly eventBanner = requireElement<HTMLElement>("event-banner");
+  private readonly eventMessage = requireElement<HTMLElement>("event-message");
+  private readonly notice = requireElement<HTMLElement>("notice");
+  private readonly fatalError = requireElement<HTMLElement>("fatal-error");
+  private readonly fatalErrorMessage =
+    requireElement<HTMLElement>("fatal-error-message");
+
+  private bannerTimeout: number | undefined;
+  private noticeTimeout: number | undefined;
+
+  constructor() {
+    this.nicknameInput.addEventListener("input", () => {
+      this.nicknameCount.textContent = `${this.nicknameInput.value.length} / 12`;
+      this.formError.textContent = "";
+    });
+  }
+
+  onJoin(handler: (nickname: string) => Promise<void>): void {
+    this.joinForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const nickname = sanitizeNickname(this.nicknameInput.value);
+      this.nicknameInput.value = nickname;
+      this.nicknameCount.textContent = `${nickname.length} / 12`;
+
+      if (!isValidNickname(nickname)) {
+        this.formError.textContent =
+          "문자·숫자·공백을 사용해 2~12자로 입력해 주세요.";
+        this.nicknameInput.focus();
+        return;
+      }
+
+      this.formError.textContent = "";
+      this.setJoinPending(true);
+      try {
+        await handler(nickname);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "서버에 연결할 수 없습니다.";
+        this.setConnectionStatus(message, "error");
+        this.formError.textContent =
+          "연결하지 못했습니다. 서버 실행 상태를 확인해 주세요.";
+        this.setJoinPending(false);
+      }
+    });
+  }
+
+  setConnectionStatus(message: string, tone: StatusTone): void {
+    this.connectionStatus.textContent = message;
+    this.connectionDot.dataset.tone = tone;
+  }
+
+  enterGame(nickname: string): void {
+    this.hudNickname.textContent = nickname;
+    this.startScreen.classList.add("is-hidden");
+    this.gameUI.classList.remove("is-hidden");
+  }
+
+  setScore(score: number): void {
+    this.hudScore.textContent = String(score);
+  }
+
+  setPlayerCount(count: number): void {
+    this.hudPlayers.textContent = String(count);
+  }
+
+  setMeteorTimer(nextMeteorAt: number, meteorActive: boolean): void {
+    if (meteorActive) {
+      this.hudTimer.textContent = "낙하 중";
+      return;
+    }
+    if (nextMeteorAt <= 0) {
+      this.hudTimer.textContent = "대기";
+      return;
+    }
+    const seconds = Math.max(0, Math.ceil((nextMeteorAt - Date.now()) / 1000));
+    this.hudTimer.textContent = `${seconds}초`;
+  }
+
+  setCollectPrompt(visible: boolean): void {
+    this.collectPrompt.classList.toggle("is-hidden", !visible);
+  }
+
+  showMeteorBanner(direction: string): void {
+    if (this.bannerTimeout !== undefined) {
+      window.clearTimeout(this.bannerTimeout);
+    }
+    this.eventMessage.textContent = `별똥별이 나타났습니다 · ${direction}`;
+    this.eventBanner.classList.remove("is-hidden");
+    this.bannerTimeout = window.setTimeout(() => {
+      this.eventBanner.classList.add("is-hidden");
+    }, 5_000);
+  }
+
+  hideMeteorBanner(): void {
+    this.eventBanner.classList.add("is-hidden");
+  }
+
+  showNotice(message: string): void {
+    if (this.noticeTimeout !== undefined) {
+      window.clearTimeout(this.noticeTimeout);
+    }
+    this.notice.textContent = message;
+    this.notice.classList.remove("is-hidden");
+    this.noticeTimeout = window.setTimeout(() => {
+      this.notice.classList.add("is-hidden");
+    }, 2_350);
+  }
+
+  showFatalError(message: string): void {
+    this.fatalErrorMessage.textContent = message;
+    this.fatalError.classList.remove("is-hidden");
+  }
+
+  private setJoinPending(pending: boolean): void {
+    this.playButton.disabled = pending;
+    this.nicknameInput.disabled = pending;
+    const label = this.playButton.querySelector("span");
+    if (label) {
+      label.textContent = pending ? "세계에 연결하는 중…" : "별빛 세계 입장";
+    }
+    if (pending) {
+      this.setConnectionStatus("공개 방을 찾는 중", "connecting");
+    }
+  }
+
+  get maxPlayers(): number {
+    return CONFIG.MAX_PLAYERS;
+  }
+}
+

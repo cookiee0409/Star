@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: starfall-server
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @starfall/server build
+    startCommand: pnpm --filter @starfall/server start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: METEOR_INTERVAL_SCALE
+        value: "1"

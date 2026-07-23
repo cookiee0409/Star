@@ -1,0 +1,15 @@
+{
+  "name": "starfall-collectors",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel --stream --filter @starfall/client --filter @starfall/server dev",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @starfall/server test"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
+  }
+}
