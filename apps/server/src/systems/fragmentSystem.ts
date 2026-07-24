@@ -1,9 +1,9 @@
 import {
   CONFIG,
   isWalkable,
+  type GameState,
   type Point2D
 } from "@starfall/shared";
-import type { GameState } from "../schema/GameState";
 
 export type RandomSource = () => number;
 

@@ -1,9 +1,9 @@
 import {
   CONFIG,
   isWalkable,
-  type MovePayload
+  type MovePayload,
+  type PlayerState
 } from "@starfall/shared";
-import type { PlayerState } from "../schema/GameState";
 
 export interface MovementValidationResult {
   accepted: boolean;

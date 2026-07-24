@@ -10,9 +10,9 @@ import {
   SERVER_MESSAGES,
   type FragmentCollectedPayload,
   type MeteorImpactPayload,
-  type MeteorWarningPayload
+  type MeteorWarningPayload,
+  type PlayerState
 } from "@starfall/shared";
-import type { PlayerState } from "../../server/src/schema/GameState";
 import { GameCamera } from "./camera/createGameCamera";
 import { MeteorEffects } from "./meteor/MeteorEffects";
 import { GameConnection } from "./net/GameConnection";

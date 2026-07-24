@@ -4,7 +4,10 @@ import { Room } from "@colyseus/core";
 import {
   CLIENT_MESSAGES,
   CONFIG,
+  FragmentState,
+  GameState,
   PLAYER_START_POINTS,
+  PlayerState,
   SERVER_MESSAGES,
   isValidNickname,
   sanitizeNickname,
@@ -15,11 +18,6 @@ import {
   type MeteorWarningPayload,
   type MovePayload
 } from "@starfall/shared";
-import {
-  FragmentState,
-  GameState,
-  PlayerState
-} from "../schema/GameState";
 import {
   createFragmentPositions,
   tryCollectFragment

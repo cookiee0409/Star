@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PlayerState } from "../schema/GameState";
+import { PlayerState } from "@starfall/shared";
 import { validateAndApplyMovement } from "./movementSystem";
 
 describe("movement validation", () => {

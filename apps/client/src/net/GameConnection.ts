@@ -1,6 +1,5 @@
 import { Client } from "@colyseus/sdk";
-import { ROOM_NAME } from "@starfall/shared";
-import type { GameRoom } from "../../../server/src/rooms/GameRoom";
+import { ROOM_NAME, type GameState } from "@starfall/shared";
 
 const RETRY_DELAYS_MS = [2_000, 3_000, 5_000, 8_000, 13_000, 13_000, 13_000];
 
@@ -25,7 +24,9 @@ export class GameConnection {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        return await this.client.joinOrCreate<GameRoom>(ROOM_NAME, { nickname });
+        return await this.client.joinOrCreate<GameState>(ROOM_NAME, {
+          nickname
+        });
       } catch (error) {
         lastError = error;
         const retryDelay = RETRY_DELAYS_MS[attempt - 1];

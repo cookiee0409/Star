@@ -10,6 +10,9 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@colyseus/schema": "^4.0.8"
+  },
   "devDependencies": {
     "typescript": "^5.8.0"
   }

@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { CONFIG, isWalkable } from "@starfall/shared";
-import { FragmentState, GameState, PlayerState } from "../schema/GameState";
+import {
+  CONFIG,
+  FragmentState,
+  GameState,
+  PlayerState,
+  isWalkable
+} from "@starfall/shared";
 import {
   createFragmentPositions,
   tryCollectFragment
