@@ -35,11 +35,24 @@ Vercel보다 Render를 먼저 배포해야 프론트엔드에 서버 주소를 �
 
 6. **Deploy**를 선택합니다.
 
-루트의 `vercel.json`이 다음 값을 자동으로 적용합니다.
+Root Directory가 `./`이면 루트의 `vercel.json`이 다음 값을 적용합니다.
 
 - Install Command: `pnpm install --frozen-lockfile`
 - Build Command: `pnpm --filter @starfall/client build`
-- Output Directory: `apps/client/dist`
+- Output Directory: `dist`
+
+### 출력 폴더에 대해
+
+Vercel은 Root Directory 설정에 따라 출력 폴더를 찾는 기준 경로가 달라집니다.
+Root Directory를 `apps/client`로 두면 저장소 루트의 `vercel.json` 자체가
+무시되어, `No Output Directory named "dist" found` 오류가 날 수 있습니다.
+
+이를 피하기 위해 클라이언트 빌드가 산출물을 두 위치에 모두 만듭니다.
+
+- `apps/client/dist` — Vite 기본 출력
+- `dist` — 저장소 루트로 복사 (`apps/client/scripts/copy-dist-to-root.mjs`)
+
+따라서 Root Directory를 어느 쪽으로 두더라도 배포는 성공합니다.
 
 `VITE_SERVER_URL`은 빌드 시점에 포함됩니다. Render 주소를 수정했다면 Vercel에서
 반드시 새로 배포해야 합니다.

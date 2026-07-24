@@ -3,5 +3,5 @@
   "framework": "vite",
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm --filter @starfall/client build",
-  "outputDirectory": "apps/client/dist"
+  "outputDirectory": "dist"
 }
