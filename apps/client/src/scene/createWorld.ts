@@ -9,7 +9,73 @@ import type { Scene } from "@babylonjs/core/scene";
 // mesh.renderOutline 은 이 모듈이 붙여 주는 기능이라 부수효과 import 가 필요하다.
 import "@babylonjs/core/Rendering/outlineRenderer";
 import { CellMaterial } from "@babylonjs/materials/cell/cellMaterial";
-import { CONFIG, WORLD_OBSTACLES } from "@starfall/shared";
+import { CONFIG, WORLD_OBSTACLES, isWalkable } from "@starfall/shared";
+import {
+  NATURE_ASSETS,
+  fitScale,
+  loadNatureTemplates,
+  placeInstance,
+  type NatureTemplates
+} from "./natureAssets";
+
+/** 배치를 매번 같게 하려고 쓰는 고정 시드 난수. */
+function seededRandom(seed: number): () => number {
+  let state = seed;
+  return () => {
+    state = (state * 1664525 + 1013904223) % 4294967296;
+    return state / 4294967296;
+  };
+}
+
+/**
+ * 충돌 판정이 없는 장식용 초목을 흩뿌린다.
+ * 서버가 아는 통행 가능 영역만 쓰므로 플레이에 영향을 주지 않는다.
+ */
+function scatterDecorations(templates: NatureTemplates): void {
+  // 큰 나무는 드물게, 작은 풀은 흔하게 섞어 밀도에 변화를 준다.
+  // 캐릭터 키가 약 2.25m 다. 나무는 그보다 확실히 크되 화면을 다 덮지 않게 잡는다.
+  const kinds = [
+    { template: templates.grass, weight: 12, height: 0.45, outline: NATURE_ASSETS.grass.outlineWidth },
+    { template: templates.fern, weight: 8, height: 0.6, outline: NATURE_ASSETS.fern.outlineWidth },
+    { template: templates.bush, weight: 5, height: 0.9, outline: NATURE_ASSETS.bush.outlineWidth },
+    { template: templates.rock, weight: 4, height: 0.7, outline: NATURE_ASSETS.rock.outlineWidth },
+    { template: templates.pine, weight: 2, height: 4.5, outline: NATURE_ASSETS.pine.outlineWidth },
+    { template: templates.treeAlt, weight: 1, height: 4, outline: NATURE_ASSETS.treeAlt.outlineWidth }
+  ].filter((kind) => kind.template !== undefined);
+
+  if (kinds.length === 0) {
+    return;
+  }
+
+  const totalWeight = kinds.reduce((sum, kind) => sum + kind.weight, 0);
+  const random = seededRandom(20260725);
+  const half = CONFIG.MAP_SIZE / 2 - 4;
+  let placed = 0;
+
+  for (let attempt = 0; attempt < 900 && placed < 240; attempt += 1) {
+    const x = (random() * 2 - 1) * half;
+    const z = (random() * 2 - 1) * half;
+    // 장애물 안이나 맵 밖에는 두지 않는다.
+    if (!isWalkable({ x, z }, 2.2)) {
+      continue;
+    }
+
+    let roll = random() * totalWeight;
+    const kind = kinds.find((candidate) => (roll -= candidate.weight) < 0) ?? kinds[0]!;
+    const template = kind.template!;
+    const variance = 0.8 + random() * 0.5;
+
+    placeInstance(
+      template,
+      `decor-${placed}`,
+      new Vector3(x, 0, z),
+      random() * Math.PI * 2,
+      fitScale(template, kind.height) * variance,
+      kind.outline
+    );
+    placed += 1;
+  }
+}
 
 function makeMaterial(
   name: string,
@@ -44,7 +110,10 @@ function addOutline(mesh: Mesh, width = 0.03): void {
   mesh.outlineColor = new Color3(0.05, 0.04, 0.09);
 }
 
-export function createWorld(scene: Scene): void {
+export async function createWorld(scene: Scene): Promise<void> {
+  // 자연 에셋이 있으면 쓰고, 없으면 아래에서 원시 도형으로 되돌아간다.
+  const templates = await loadNatureTemplates(scene);
+
   // 아니메풍은 어두운 대비보다 밝고 평평한 하늘색이 어울린다.
   scene.clearColor = new Color4(0.55, 0.79, 0.86, 1);
   scene.ambientColor = new Color3(0.3, 0.34, 0.36);
@@ -123,6 +192,27 @@ export function createWorld(scene: Scene): void {
   ];
 
   WORLD_OBSTACLES.forEach((obstacle, index) => {
+    // 실제 모델이 있으면 그것으로 대체한다.
+    // 충돌 판정은 서버의 WORLD_OBSTACLES 가 그대로 담당하므로,
+    // 모델은 해당 크기에 맞춰 얹기만 한다.
+    const isTree = obstacle.kind === "box";
+    const template = isTree ? templates.tree : templates.rock;
+    if (template) {
+      placeInstance(
+        template,
+        `obstacle-${index}`,
+        new Vector3(obstacle.x, 0, obstacle.z),
+        isTree ? obstacle.rotationY : index * 1.1,
+        // 나무는 충돌 크기보다 크게 자라야 자연스럽다.
+        // 충돌 판정은 서버의 WORLD_OBSTACLES 가 그대로 담당한다.
+        fitScale(template, obstacle.height * (isTree ? 1.6 : 1.1)),
+        isTree
+          ? NATURE_ASSETS.tree.outlineWidth
+          : NATURE_ASSETS.rock.outlineWidth
+      );
+      return;
+    }
+
     const mesh =
       obstacle.kind === "box"
         ? MeshBuilder.CreateBox(
@@ -194,5 +284,7 @@ export function createWorld(scene: Scene): void {
     marker.position.set(x, 0.07, z);
     marker.material = starMaterial;
   });
+
+  scatterDecorations(templates);
 }
 

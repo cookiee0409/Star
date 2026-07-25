@@ -58,7 +58,7 @@ export class GameApp {
       adaptToDeviceRatio: true
     });
     this.scene = new Scene(this.engine);
-    createWorld(this.scene);
+    await createWorld(this.scene);
     this.camera = new GameCamera(this.scene, this.canvas);
     this.effects = new MeteorEffects(this.scene);
 
