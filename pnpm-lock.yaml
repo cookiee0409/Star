@@ -17,6 +17,9 @@ importers:
       '@babylonjs/core':
         specifier: ^8.0.0
         version: 8.56.2
+      '@babylonjs/materials':
+        specifier: ^8.56.2
+        version: 8.56.2(@babylonjs/core@8.56.2)
       '@colyseus/sdk':
         specifier: ^0.17.26
         version: 0.17.43(@colyseus/core@0.17.44)(typescript@5.9.3)
@@ -76,6 +79,11 @@ packages:
 
   '@babylonjs/core@8.56.2':
     resolution: {integrity: sha512-UShs1pt8tSTLYOoITWclXPNrUZUpuHvB2Ur2L1D+uM8c9qaAYOi9gjkurOkQwIlbPGqwQHWImGEyiyix0mQ1dg==}
+
+  '@babylonjs/materials@8.56.2':
+    resolution: {integrity: sha512-uBcw0fT3NdQlm/2dG7vmaDyK3yl/MrKWEJVAW64O1oU3KPPvprHAA7r1yhDidHPEFKYmwO9fCazDqW9NN8Z6gQ==}
+    peerDependencies:
+      '@babylonjs/core': ^8.6.0
 
   '@better-auth/utils@0.3.1':
     resolution: {integrity: sha512-+CGp4UmZSUrHHnpHhLPYu6cV+wSUSvVbZbNykxhUDocpVNTo9uFFxw/NqJlh1iC4wQ9HKKWGCKuZ5wUgS0v6Kg==}
@@ -1037,6 +1045,10 @@ packages:
 snapshots:
 
   '@babylonjs/core@8.56.2': {}
+
+  '@babylonjs/materials@8.56.2(@babylonjs/core@8.56.2)':
+    dependencies:
+      '@babylonjs/core': 8.56.2
 
   '@better-auth/utils@0.3.1': {}
 

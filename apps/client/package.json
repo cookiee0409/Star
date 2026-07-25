@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@babylonjs/core": "^8.0.0",
+    "@babylonjs/materials": "^8.56.2",
     "@colyseus/sdk": "^0.17.26",
     "@starfall/shared": "workspace:*"
   },
@@ -18,4 +19,3 @@
     "vite": "^7.0.0"
   }
 }
-

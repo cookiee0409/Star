@@ -6,6 +6,8 @@ import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import type { Scene } from "@babylonjs/core/scene";
+import "@babylonjs/core/Rendering/outlineRenderer";
+import { CellMaterial } from "@babylonjs/materials/cell/cellMaterial";
 import { CONFIG } from "@starfall/shared";
 
 function colorFromId(id: string): Color3 {
@@ -95,12 +97,14 @@ export class PlayerAvatar {
     this.root.position.set(position.x, 1.125, position.z);
     this.root.isPickable = false;
 
-    const material = new StandardMaterial(`player-material-${sessionId}`, scene);
+    const material = new CellMaterial(`player-material-${sessionId}`, scene);
     const color = isLocal ? new Color3(0.46, 0.9, 0.87) : colorFromId(sessionId);
-    material.diffuseColor = color.scale(0.72);
-    material.emissiveColor = color.scale(isLocal ? 0.22 : 0.11);
-    material.specularColor = new Color3(0.2, 0.2, 0.25);
+    material.diffuseColor = color;
+    material.computeHighLevel = true;
     this.root.material = material;
+    this.root.renderOutline = true;
+    this.root.outlineWidth = 0.035;
+    this.root.outlineColor = new Color3(0.05, 0.04, 0.09);
 
     const visor = MeshBuilder.CreateSphere(
       `visor-${sessionId}`,
