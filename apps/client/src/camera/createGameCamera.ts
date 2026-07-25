@@ -1,10 +1,11 @@
-import {
-  ArcRotateCamera,
-  ArcRotateCameraPointersInput,
-  Scalar,
-  Scene,
-  Vector3
-} from "@babylonjs/core";
+import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
+import type { ArcRotateCameraPointersInput } from "@babylonjs/core/Cameras/Inputs/arcRotateCameraPointersInput";
+import { Scalar } from "@babylonjs/core/Maths/math.scalar";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import type { Scene } from "@babylonjs/core/scene";
+// getForwardRay() 는 Ray 모듈이 프로토타입에 붙여 주는 기능이라
+// 배럴 없이 쓰려면 이 부수효과 import 가 반드시 필요하다.
+import "@babylonjs/core/Culling/ray";
 import { CONFIG } from "@starfall/shared";
 
 const toRadians = (degrees: number): number => (degrees * Math.PI) / 180;

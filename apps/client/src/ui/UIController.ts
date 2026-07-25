@@ -1,4 +1,5 @@
 import { CONFIG, isValidNickname, sanitizeNickname } from "@starfall/shared";
+import { ServerUrlError } from "../net/serverUrl";
 
 type StatusTone = "idle" | "connecting" | "online" | "error";
 
@@ -65,8 +66,11 @@ export class UIController {
         const message =
           error instanceof Error ? error.message : "서버에 연결할 수 없습니다.";
         this.setConnectionStatus(message, "error");
+        // 설정 오류는 서버를 켜도 해결되지 않으므로 원인을 그대로 보여준다.
         this.formError.textContent =
-          "연결하지 못했습니다. 서버 실행 상태를 확인해 주세요.";
+          error instanceof ServerUrlError
+            ? message
+            : "연결하지 못했습니다. 서버 실행 상태를 확인해 주세요.";
         this.setJoinPending(false);
       }
     });

@@ -1,12 +1,10 @@
-import {
-  Color3,
-  Mesh,
-  MeshBuilder,
-  PointLight,
-  Scene,
-  StandardMaterial,
-  Vector3
-} from "@babylonjs/core";
+import { PointLight } from "@babylonjs/core/Lights/pointLight";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
+import { Color3 } from "@babylonjs/core/Maths/math.color";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import type { Scene } from "@babylonjs/core/scene";
 import {
   CONFIG,
   type MeteorImpactPayload,
@@ -37,6 +35,14 @@ interface ImpactVisual {
   flash: PointLight;
 }
 
+// 크레이터는 파편과 달리 바닥에 남겨 두는 연출이라 자동으로 사라지지 않는다.
+// 방을 오래 유지하면 무한히 쌓이므로 최근 것만 남기고 오래된 것부터 지운다.
+const MAX_CRATERS = 8;
+
+// 낙하 예정 시각을 이만큼 넘기면 충돌 메시지를 놓친 것으로 보고 정리한다.
+// (연결이 끊기거나 메시지를 유실해도 메시와 라이트가 남지 않게 한다.)
+const METEOR_CLEANUP_GRACE_MS = 5_000;
+
 function material(
   name: string,
   scene: Scene,
@@ -62,6 +68,7 @@ export class MeteorEffects {
   private readonly fragments = new Map<string, FragmentVisual>();
   private readonly meteors = new Map<string, MeteorVisual>();
   private readonly impacts: ImpactVisual[] = [];
+  private readonly craters: Mesh[] = [];
   private readonly fragmentMaterial: StandardMaterial;
   private readonly meteorMaterial: StandardMaterial;
   private readonly trailMaterial: StandardMaterial;
@@ -157,6 +164,10 @@ export class MeteorEffects {
     crater.rotation.x = Math.PI / 2;
     crater.position.set(payload.x, 0.035, payload.z);
     crater.material = this.craterMaterial;
+    this.craters.push(crater);
+    while (this.craters.length > MAX_CRATERS) {
+      this.craters.shift()?.dispose();
+    }
 
     const flash = new PointLight(
       `impact-light-${payload.meteorId}`,
@@ -257,6 +268,8 @@ export class MeteorEffects {
       visual.mesh.rotation.y += deltaSeconds * 1.5;
     });
 
+    const fallDurationMs = CONFIG.METEOR_FALL_DURATION * 1000;
+    const stale: string[] = [];
     this.meteors.forEach((meteor) => {
       const elapsed = now - meteor.fallStartsAt;
       if (elapsed < 0) {
@@ -264,7 +277,11 @@ export class MeteorEffects {
         meteor.body.scaling.setAll(pulse);
         return;
       }
-      const progress = Math.min(1, elapsed / (CONFIG.METEOR_FALL_DURATION * 1000));
+      if (elapsed > fallDurationMs + METEOR_CLEANUP_GRACE_MS) {
+        stale.push(meteor.id);
+        return;
+      }
+      const progress = Math.min(1, elapsed / fallDurationMs);
       const eased = progress * progress;
       meteor.body.position = Vector3.Lerp(meteor.start, meteor.target, eased);
       meteor.light.position.copyFrom(meteor.body.position);
@@ -273,6 +290,11 @@ export class MeteorEffects {
         trail.position = Vector3.Lerp(meteor.start, meteor.target, offsetProgress);
       });
     });
+
+    stale.forEach((id) => this.disposeMeteor(id));
+    if (this.meteors.size === 0) {
+      this.meteorActive = false;
+    }
 
     for (let index = this.impacts.length - 1; index >= 0; index -= 1) {
       const impact = this.impacts[index]!;

@@ -1,13 +1,11 @@
-import {
-  AbstractMesh,
-  Color3,
-  DynamicTexture,
-  Mesh,
-  MeshBuilder,
-  Scene,
-  StandardMaterial,
-  Vector3
-} from "@babylonjs/core";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture";
+import { Color3 } from "@babylonjs/core/Maths/math.color";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import type { Scene } from "@babylonjs/core/scene";
 import { CONFIG } from "@starfall/shared";
 
 function colorFromId(id: string): Color3 {

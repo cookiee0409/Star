@@ -1,9 +1,9 @@
 import { Callbacks } from "@colyseus/sdk";
-import {
-  Engine,
-  Scene,
-  Vector3
-} from "@babylonjs/core";
+// Babylon 은 배럴("@babylonjs/core")에서 가져오면 엔진 전체가 번들에 들어간다.
+// 실제로 쓰는 모듈만 경로로 직접 가져와 번들 크기를 줄인다.
+import { Engine } from "@babylonjs/core/Engines/engine";
+import { Scene } from "@babylonjs/core/scene";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import {
   CLIENT_MESSAGES,
   CONFIG,
@@ -16,6 +16,7 @@ import {
 import { GameCamera } from "./camera/createGameCamera";
 import { MeteorEffects } from "./meteor/MeteorEffects";
 import { GameConnection } from "./net/GameConnection";
+import { resolveServerUrl } from "./net/serverUrl";
 import { LocalPlayerController } from "./player/LocalPlayerController";
 import { PlayerAvatar } from "./player/PlayerAvatar";
 import { createWorld } from "./scene/createWorld";
@@ -40,9 +41,7 @@ export class GameApp {
   ) {}
 
   async start(nickname: string): Promise<void> {
-    const serverUrl =
-      import.meta.env.VITE_SERVER_URL?.trim() || "http://localhost:2567";
-    const connection = new GameConnection(serverUrl);
+    const connection = new GameConnection(resolveServerUrl());
     const room = await connection.connect(nickname, ({ attempt, maxAttempts }) => {
       this.ui.setConnectionStatus(
         `무료 서버를 시작하는 중… (${attempt}/${maxAttempts})`,

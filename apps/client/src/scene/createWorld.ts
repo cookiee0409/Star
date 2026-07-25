@@ -1,13 +1,10 @@
-import {
-  Color3,
-  Color4,
-  DirectionalLight,
-  HemisphericLight,
-  MeshBuilder,
-  Scene,
-  StandardMaterial,
-  Vector3
-} from "@babylonjs/core";
+import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
+import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
+import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import type { Scene } from "@babylonjs/core/scene";
 import { CONFIG, WORLD_OBSTACLES } from "@starfall/shared";
 
 function makeMaterial(
