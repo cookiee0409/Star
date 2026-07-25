@@ -34,7 +34,8 @@ function colorFromId(id: string): Color3 {
 function createNameplate(
   nickname: string,
   scene: Scene,
-  parent: AbstractMesh
+  parent: AbstractMesh,
+  height: number
 ): Mesh {
   const plane = MeshBuilder.CreatePlane(
     `nameplate-${nickname}`,
@@ -42,8 +43,8 @@ function createNameplate(
     scene
   );
   plane.parent = parent;
-  // 루트가 발밑에 있으므로 키 위로 올린다.
-  plane.position.y = 2.75;
+  // 루트가 발밑에 있으므로 머리 위로 올린다.
+  plane.position.y = height;
   plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
   plane.isPickable = false;
 
@@ -117,8 +118,21 @@ export class PlayerAvatar {
       this.buildCapsule(scene, sessionId, color);
     }
 
-    this.nameplate = createNameplate(nickname, scene, this.root);
+    // 이름표는 모델 키에 맞춰 올린다. 캐릭터를 바꿔도 붕 뜨거나 겹치지 않는다.
+    this.nameplate = createNameplate(
+      nickname,
+      scene,
+      this.root,
+      this.measureHeight() + 0.35
+    );
     this.targetPosition = this.root.position.clone();
+  }
+
+  /** 지금 붙어 있는 몸통의 실제 키를 잰다. */
+  private measureHeight(): number {
+    const { min, max } = this.root.getHierarchyBoundingVectors(true);
+    const height = max.y - min.y;
+    return Number.isFinite(height) && height > 0.1 ? height : 2.25;
   }
 
   /** 모델이 없을 때 쓰는 기본 몸통. */
