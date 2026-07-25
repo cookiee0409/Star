@@ -1,4 +1,5 @@
 import { Callbacks } from "@colyseus/sdk";
+import type { AssetContainer } from "@babylonjs/core/assetContainer";
 // Babylon 은 배럴("@babylonjs/core")에서 가져오면 엔진 전체가 번들에 들어간다.
 // 실제로 쓰는 모듈만 경로로 직접 가져와 번들 크기를 줄인다.
 import { Engine } from "@babylonjs/core/Engines/engine";
@@ -17,6 +18,7 @@ import { GameCamera } from "./camera/createGameCamera";
 import { MeteorEffects } from "./meteor/MeteorEffects";
 import { GameConnection } from "./net/GameConnection";
 import { resolveServerUrl } from "./net/serverUrl";
+import { loadCharacterContainer } from "./player/characterAssets";
 import { LocalPlayerController } from "./player/LocalPlayerController";
 import { PlayerAvatar } from "./player/PlayerAvatar";
 import { createWorld } from "./scene/createWorld";
@@ -29,6 +31,7 @@ export class GameApp {
   private localPlayer: LocalPlayerController | undefined;
   private readonly remotePlayers = new Map<string, PlayerAvatar>();
   private effects: MeteorEffects | undefined;
+  private characters: AssetContainer | undefined;
   private sendAccumulator = 0;
   private nextMeteorAt = 0;
   private playerCount = 0;
@@ -58,7 +61,12 @@ export class GameApp {
       adaptToDeviceRatio: true
     });
     this.scene = new Scene(this.engine);
-    await createWorld(this.scene);
+    // 캐릭터 모델은 없어도 되므로 월드와 함께 미리 받아 둔다.
+    const [characters] = await Promise.all([
+      loadCharacterContainer(this.scene),
+      createWorld(this.scene)
+    ]);
+    this.characters = characters;
     this.camera = new GameCamera(this.scene, this.canvas);
     this.effects = new MeteorEffects(this.scene);
 
@@ -73,7 +81,8 @@ export class GameApp {
         sessionId,
         player.nickname,
         { x: player.x, z: player.z },
-        isLocal
+        isLocal,
+        this.characters
       );
 
       if (isLocal) {
@@ -159,9 +168,10 @@ export class GameApp {
       this.ui.setScore(player.score);
       return;
     }
-    this.remotePlayers
-      .get(sessionId)
-      ?.setNetworkTarget(player.x, player.z, player.rotationY);
+    const avatar = this.remotePlayers.get(sessionId);
+    avatar?.setNetworkTarget(player.x, player.z, player.rotationY);
+    // 이동 상태는 서버가 동기화해 주므로 그대로 애니메이션에 넘긴다.
+    avatar?.setMoveState(player.moveState);
   }
 
   private update(

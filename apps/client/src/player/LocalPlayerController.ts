@@ -27,6 +27,7 @@ export class LocalPlayerController {
 
     if (!hasInput) {
       this.moveState = "idle";
+      this.avatar.setMoveState(this.moveState);
       return;
     }
 
@@ -52,6 +53,7 @@ export class LocalPlayerController {
       Math.min(1, rotationAmount)
     );
     this.moveState = running ? "run" : "walk";
+    this.avatar.setMoveState(this.moveState);
   }
 
   snapshot(): MovePayload {

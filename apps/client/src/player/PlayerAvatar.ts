@@ -5,9 +5,15 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import type { AssetContainer } from "@babylonjs/core/assetContainer";
 import type { Scene } from "@babylonjs/core/scene";
+import type { MoveState } from "@starfall/shared";
 import "@babylonjs/core/Rendering/outlineRenderer";
 import { CellMaterial } from "@babylonjs/materials/cell/cellMaterial";
+import {
+  createCharacterInstance,
+  type CharacterInstance
+} from "./characterAssets";
 import { CONFIG } from "@starfall/shared";
 
 function colorFromId(id: string): Color3 {
@@ -36,7 +42,8 @@ function createNameplate(
     scene
   );
   plane.parent = parent;
-  plane.position.y = 1.82;
+  // 루트가 발밑에 있으므로 키 위로 올린다.
+  plane.position.y = 2.75;
   plane.billboardMode = Mesh.BILLBOARDMODE_ALL;
   plane.isPickable = false;
 
@@ -75,56 +82,86 @@ function createNameplate(
 }
 
 export class PlayerAvatar {
+  /** 발이 닿는 지점. 위치·회전은 항상 이 노드가 기준이다. */
   readonly root: Mesh;
   readonly nameplate: Mesh;
   private targetPosition: Vector3;
   private targetRotation = 0;
   private readonly isLocal: boolean;
+  private readonly character: CharacterInstance | undefined;
 
   constructor(
     scene: Scene,
     sessionId: string,
     nickname: string,
     position: { x: number; z: number },
-    isLocal: boolean
+    isLocal: boolean,
+    characters?: AssetContainer
   ) {
     this.isLocal = isLocal;
-    this.root = MeshBuilder.CreateCapsule(
-      `player-${sessionId}`,
+    const color = isLocal ? new Color3(0.46, 0.9, 0.87) : colorFromId(sessionId);
+
+    // 빈 루트를 지면에 두고 몸통을 그 아래 붙인다.
+    // 캡슐이든 모델이든 바깥에서는 root 하나만 다루면 된다.
+    this.root = new Mesh(`player-${sessionId}`, scene);
+    this.root.position.set(position.x, 0, position.z);
+    this.root.isPickable = false;
+
+    this.character = characters
+      ? createCharacterInstance(characters, scene, `player-${sessionId}`, color)
+      : undefined;
+
+    if (this.character) {
+      this.character.root.parent = this.root;
+    } else {
+      this.buildCapsule(scene, sessionId, color);
+    }
+
+    this.nameplate = createNameplate(nickname, scene, this.root);
+    this.targetPosition = this.root.position.clone();
+  }
+
+  /** 모델이 없을 때 쓰는 기본 몸통. */
+  private buildCapsule(scene: Scene, sessionId: string, color: Color3): void {
+    const body = MeshBuilder.CreateCapsule(
+      `player-body-${sessionId}`,
       { height: 2.25, radius: CONFIG.PLAYER_RADIUS, tessellation: 12 },
       scene
     );
-    this.root.position.set(position.x, 1.125, position.z);
-    this.root.isPickable = false;
+    body.parent = this.root;
+    body.position.y = 1.125;
+    body.isPickable = false;
 
     const material = new CellMaterial(`player-material-${sessionId}`, scene);
-    const color = isLocal ? new Color3(0.46, 0.9, 0.87) : colorFromId(sessionId);
     material.diffuseColor = color;
     material.computeHighLevel = true;
-    this.root.material = material;
-    this.root.renderOutline = true;
-    this.root.outlineWidth = 0.035;
-    this.root.outlineColor = new Color3(0.05, 0.04, 0.09);
+    body.material = material;
+    body.renderOutline = true;
+    body.outlineWidth = 0.035;
+    body.outlineColor = new Color3(0.05, 0.04, 0.09);
 
     const visor = MeshBuilder.CreateSphere(
       `visor-${sessionId}`,
       { diameter: 0.46, segments: 10 },
       scene
     );
-    visor.parent = this.root;
+    visor.parent = body;
     visor.position.set(0, 0.37, 0.45);
     visor.scaling.set(1.2, 0.62, 0.38);
+    visor.isPickable = false;
     const visorMaterial = new StandardMaterial(`visor-material-${sessionId}`, scene);
     visorMaterial.diffuseColor = new Color3(0.12, 0.14, 0.23);
     visorMaterial.emissiveColor = new Color3(0.11, 0.13, 0.27);
     visor.material = visorMaterial;
+  }
 
-    this.nameplate = createNameplate(nickname, scene, this.root);
-    this.targetPosition = this.root.position.clone();
+  /** 이동 상태에 맞는 애니메이션으로 전환한다. 모델이 없으면 아무 일도 하지 않는다. */
+  setMoveState(state: MoveState): void {
+    this.character?.setMoveState(state);
   }
 
   setNetworkTarget(x: number, z: number, rotationY: number): void {
-    this.targetPosition.set(x, 1.125, z);
+    this.targetPosition.set(x, 0, z);
     this.targetRotation = rotationY;
   }
 
@@ -150,6 +187,7 @@ export class PlayerAvatar {
   }
 
   dispose(): void {
+    this.character?.dispose();
     this.root.dispose(false, true);
   }
 }
