@@ -5,14 +5,17 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
-import type { AssetContainer } from "@babylonjs/core/assetContainer";
 import type { Scene } from "@babylonjs/core/scene";
 import type { MoveState } from "@starfall/shared";
 import "@babylonjs/core/Rendering/outlineRenderer";
-import { CellMaterial } from "@babylonjs/materials/cell/cellMaterial";
+import { getToonMaterial } from "../scene/toonMaterial";
 import {
+  OUTLINE_COLOR,
+  OUTLINE_WIDTH,
   createCharacterInstance,
-  type CharacterInstance
+  pickCharacter,
+  type CharacterInstance,
+  type CharacterPack
 } from "./characterAssets";
 import { CONFIG } from "@starfall/shared";
 
@@ -90,6 +93,8 @@ export class PlayerAvatar {
   private targetRotation = 0;
   private readonly isLocal: boolean;
   private readonly character: CharacterInstance | undefined;
+  /** 외곽선이 켜진 파트와 기준 두께. 매 프레임 두께를 맞추려고 미리 모아 둔다. */
+  private readonly outlined: { mesh: AbstractMesh; width: number }[] = [];
 
   constructor(
     scene: Scene,
@@ -97,7 +102,7 @@ export class PlayerAvatar {
     nickname: string,
     position: { x: number; z: number },
     isLocal: boolean,
-    characters?: AssetContainer
+    pack?: CharacterPack
   ) {
     this.isLocal = isLocal;
     const color = isLocal ? new Color3(0.46, 0.9, 0.87) : colorFromId(sessionId);
@@ -108,8 +113,10 @@ export class PlayerAvatar {
     this.root.position.set(position.x, 0, position.z);
     this.root.isPickable = false;
 
-    this.character = characters
-      ? createCharacterInstance(characters, scene, `player-${sessionId}`, color)
+    // 색은 캡슐로 떨어졌을 때만 쓰인다. 모델은 자기 텍스처를 그대로 입는다.
+    const container = pack ? pickCharacter(pack, sessionId) : undefined;
+    this.character = container
+      ? createCharacterInstance(container, scene, `player-${sessionId}`, color)
       : undefined;
 
     if (this.character) {
@@ -126,6 +133,12 @@ export class PlayerAvatar {
       this.measureHeight() + 0.35
     );
     this.targetPosition = this.root.position.clone();
+
+    this.root.getChildMeshes().forEach((mesh) => {
+      if (mesh.renderOutline) {
+        this.outlined.push({ mesh, width: mesh.outlineWidth });
+      }
+    });
   }
 
   /** 지금 붙어 있는 몸통의 실제 키를 잰다. */
@@ -146,13 +159,13 @@ export class PlayerAvatar {
     body.position.y = 1.125;
     body.isPickable = false;
 
-    const material = new CellMaterial(`player-material-${sessionId}`, scene);
-    material.diffuseColor = color;
-    material.computeHighLevel = true;
-    body.material = material;
+    // 머티리얼은 색이 같으면 공유한다. 모델과 같은 규칙이다.
+    body.material = getToonMaterial(scene, `player-material-${sessionId}`, {
+      color
+    });
     body.renderOutline = true;
-    body.outlineWidth = 0.035;
-    body.outlineColor = new Color3(0.05, 0.04, 0.09);
+    body.outlineWidth = OUTLINE_WIDTH * 1.75;
+    body.outlineColor = OUTLINE_COLOR;
 
     const visor = MeshBuilder.CreateSphere(
       `visor-${sessionId}`,
@@ -163,10 +176,9 @@ export class PlayerAvatar {
     visor.position.set(0, 0.37, 0.45);
     visor.scaling.set(1.2, 0.62, 0.38);
     visor.isPickable = false;
-    const visorMaterial = new StandardMaterial(`visor-material-${sessionId}`, scene);
-    visorMaterial.diffuseColor = new Color3(0.12, 0.14, 0.23);
-    visorMaterial.emissiveColor = new Color3(0.11, 0.13, 0.27);
-    visor.material = visorMaterial;
+    visor.material = getToonMaterial(scene, `visor-material-${sessionId}`, {
+      color: new Color3(0.12, 0.14, 0.23)
+    });
   }
 
   /** 이동 상태에 맞는 애니메이션으로 전환한다. 모델이 없으면 아무 일도 하지 않는다. */
@@ -194,15 +206,24 @@ export class PlayerAvatar {
       );
     }
 
-    this.nameplate.setEnabled(
-      Vector3.DistanceSquared(this.root.position, cameraPosition) <=
-        CONFIG.NAMEPLATE_HIDE_DISTANCE ** 2
-    );
+    const distance = Vector3.Distance(this.root.position, cameraPosition);
+    this.nameplate.setEnabled(distance <= CONFIG.NAMEPLATE_HIDE_DISTANCE);
+
+    // 외곽선 두께는 월드 단위라 줌인하면 굵어지고 줌아웃하면 사라진다.
+    // 기준 거리에 맞춰 보정해 화면에서 보이는 선 굵기를 일정하게 유지한다.
+    // 아니메 룩에서 선 굵기는 셰이딩만큼 눈에 띄는 요소다.
+    const scale = Math.min(1.7, Math.max(0.7, distance / CONFIG.CAM_DISTANCE));
+    for (const entry of this.outlined) {
+      entry.mesh.outlineWidth = entry.width * scale;
+    }
   }
 
   dispose(): void {
     this.character?.dispose();
-    this.root.dispose(false, true);
+    // 이름표만 이 아바타의 것이다. 텍스처까지 직접 정리한다.
+    // 몸통 머티리얼은 플레이어끼리 공유하므로 여기서 지우면 안 된다.
+    this.nameplate.material?.dispose(false, true);
+    this.root.dispose(false, false);
   }
 }
 

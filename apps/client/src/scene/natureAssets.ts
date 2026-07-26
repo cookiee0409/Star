@@ -12,30 +12,12 @@ import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { ImportMeshAsync } from "@babylonjs/core/Loading/sceneLoader";
 import type { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/core/Rendering/outlineRenderer";
-import { CellMaterial } from "@babylonjs/materials/cell/cellMaterial";
 // glTF 로더 등록 (부수효과).
 import "@babylonjs/loaders/glTF/2.0";
+import { MATERIAL_ALPHATEST, getToonMaterial } from "./toonMaterial";
 
 const ASSET_DIR = "/assets/nature/";
 const OUTLINE_COLOR = new Color3(0.05, 0.04, 0.09);
-
-/**
- * 알파 컷아웃을 지원하는 CellMaterial.
- *
- * 나뭇잎은 텍스처의 알파로 모양을 오려내는데(glTF alphaMode: MASK),
- * 기본 CellMaterial 은 needAlphaTesting() 이 false 로 고정되어 있어
- * 잎이 잘리지 않고 사각형 판으로 보인다.
- * 셰이더 자체는 ALPHATEST 를 지원하므로 이 두 메서드만 열어 주면 된다.
- */
-class CutoutCellMaterial extends CellMaterial {
-  override needAlphaTesting(): boolean {
-    return true;
-  }
-
-  override getAlphaTestTexture(): BaseTexture | null {
-    return this.diffuseTexture;
-  }
-}
 
 export interface NatureAsset {
   /** ASSET_DIR 기준 파일명 */
@@ -65,16 +47,13 @@ interface SourceMaterial {
   transparencyMode?: number | null;
 }
 
-/** Material.MATERIAL_ALPHATEST. 상수 하나 때문에 core 를 더 끌어오지 않는다. */
-const MATERIAL_ALPHATEST = 1;
-
 /**
- * 불러온 파트 하나를 셀셰이딩으로 바꾼다.
+ * 불러온 파트 하나를 툰 셰이딩으로 바꾼다.
  *
  * 파트마다 따로 처리하는 이유: 나무는 껍질과 잎이 서로 다른 머티리얼과
  * 텍스처를 쓴다. 하나로 합치면 둘 중 하나의 색만 남는다.
  */
-function applyCelStyle(mesh: Mesh, scene: Scene, outlineWidth: number): void {
+function applyToonStyle(mesh: Mesh, scene: Scene, outlineWidth: number): void {
   // 법선이 없으면 조명 계산이 되지 않아 납작하게 보인다.
   if (!mesh.isVerticesDataPresent("normal")) {
     mesh.createNormals(true);
@@ -86,19 +65,17 @@ function applyCelStyle(mesh: Mesh, scene: Scene, outlineWidth: number): void {
   // 나뭇잎처럼 알파로 모양을 오려내는 파트인가?
   const isFoliage = source?.transparencyMode === MATERIAL_ALPHATEST;
 
-  const cell = new CutoutCellMaterial(`cell-${mesh.name}`, scene);
-  cell.computeHighLevel = true; // 2단계 대신 3단계 음영
-  if (texture) {
-    texture.hasAlpha = true; // 잎을 오려내기 위해 알파를 살린다
-    cell.diffuseTexture = texture;
-  }
-  if (color) {
-    cell.diffuseColor = color;
-  }
   // 잎은 판 형태라 뒷면도 보여야 자연스럽다. 줄기·바위는 닫힌 입체라 그대로 둔다.
-  cell.backFaceCulling = !isFoliage;
-
-  mesh.material = cell;
+  //
+  // 잎에는 림 라이트를 걸지 않는다. 잎은 평평한 판이라 법선이 시선과 거의
+  // 직각이고, 그러면 판 전체가 테두리로 인식돼 나무가 하얗게 뜬다.
+  mesh.material = getToonMaterial(scene, `toon-${mesh.name}`, {
+    texture,
+    color,
+    cutout: isFoliage, // 알파로 잎 모양을 오려낸다
+    twoSided: isFoliage,
+    rim: isFoliage ? 0 : 0.5
+  });
   mesh.isPickable = false;
 
   // 이 모델들은 정점 색상(COLOR_0)을 갖고 있는데, 그대로 두면 두 가지가 어긋난다.
@@ -141,7 +118,7 @@ export async function loadNatureTemplate(
 
     const root = new Mesh(`template-${asset.file}`, scene);
     parts.forEach((part) => {
-      applyCelStyle(part, scene, asset.outlineWidth);
+      applyToonStyle(part, scene, asset.outlineWidth);
       part.parent = root;
     });
 

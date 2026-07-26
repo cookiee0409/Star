@@ -1,5 +1,4 @@
 import { Callbacks } from "@colyseus/sdk";
-import type { AssetContainer } from "@babylonjs/core/assetContainer";
 // Babylon 은 배럴("@babylonjs/core")에서 가져오면 엔진 전체가 번들에 들어간다.
 // 실제로 쓰는 모듈만 경로로 직접 가져와 번들 크기를 줄인다.
 import { Engine } from "@babylonjs/core/Engines/engine";
@@ -18,7 +17,10 @@ import { GameCamera } from "./camera/createGameCamera";
 import { MeteorEffects } from "./meteor/MeteorEffects";
 import { GameConnection } from "./net/GameConnection";
 import { resolveServerUrl } from "./net/serverUrl";
-import { loadCharacterContainer } from "./player/characterAssets";
+import {
+  loadCharacterPack,
+  type CharacterPack
+} from "./player/characterAssets";
 import { LocalPlayerController } from "./player/LocalPlayerController";
 import { PlayerAvatar } from "./player/PlayerAvatar";
 import { createWorld } from "./scene/createWorld";
@@ -31,7 +33,7 @@ export class GameApp {
   private localPlayer: LocalPlayerController | undefined;
   private readonly remotePlayers = new Map<string, PlayerAvatar>();
   private effects: MeteorEffects | undefined;
-  private characters: AssetContainer | undefined;
+  private characters: CharacterPack | undefined;
   private sendAccumulator = 0;
   private nextMeteorAt = 0;
   private playerCount = 0;
@@ -63,7 +65,7 @@ export class GameApp {
     this.scene = new Scene(this.engine);
     // 캐릭터 모델은 없어도 되므로 월드와 함께 미리 받아 둔다.
     const [characters] = await Promise.all([
-      loadCharacterContainer(this.scene),
+      loadCharacterPack(this.scene),
       createWorld(this.scene)
     ]);
     this.characters = characters;
