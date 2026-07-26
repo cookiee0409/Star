@@ -538,6 +538,73 @@ kbd {
   backdrop-filter: blur(10px);
 }
 
+/* 지난 기록. 저장된 값이 있을 때만 보인다. */
+.profile-row {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+
+.profile-row strong {
+  color: rgba(255, 211, 122, 0.9);
+  font-weight: 600;
+}
+
+/* 소리 설정. 평소엔 작은 버튼 하나고, 누르면 슬라이더가 나온다. */
+.audio-panel {
+  position: absolute;
+  right: 20px;
+  bottom: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.audio-panel button {
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(13, 11, 24, 0.55);
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12px;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+
+.audio-panel button:hover {
+  color: #66e4df;
+}
+
+.audio-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(13, 11, 24, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.audio-sliders label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 9px;
+}
+
+.audio-sliders span {
+  width: 30px;
+}
+
+.audio-sliders input {
+  width: 92px;
+  accent-color: #66e4df;
+}
+
 .control-hint {
   position: absolute;
   right: 20px;

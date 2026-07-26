@@ -14,6 +14,7 @@ import {
   type MeteorWarningPayload,
   type PlayerState
 } from "@starfall/shared";
+import { AudioController } from "./audio/AudioController";
 import { GameCamera } from "./camera/createGameCamera";
 import { MeteorEffects } from "./meteor/MeteorEffects";
 import { GameConnection } from "./net/GameConnection";
@@ -40,6 +41,7 @@ export class GameApp {
   private playerCount = 0;
   private cameraShake = 0;
   private cameraShakeTime = 0;
+  private readonly audio = new AudioController();
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -47,6 +49,20 @@ export class GameApp {
   ) {}
 
   async start(nickname: string): Promise<void> {
+    // 입장 버튼 클릭이 이 함수를 부른다. 브라우저가 소리를 허용하는 시점이
+    // 바로 이 사용자 입력이므로 여기서 오디오를 연다.
+    this.audio.unlock();
+    this.audio.play("uiClick");
+    this.ui.bindAudioControls(this.audio.volumes, (kind, value) => {
+      if (kind === "sfx") {
+        this.audio.setSfxVolume(value);
+        // 움직인 결과를 바로 들려준다.
+        this.audio.play("uiClick");
+      } else {
+        this.audio.setMusicVolume(value);
+      }
+    });
+
     const connection = new GameConnection(resolveServerUrl());
     const room = await connection.connect(nickname, ({ attempt, maxAttempts }) => {
       this.ui.setConnectionStatus(
@@ -91,6 +107,7 @@ export class GameApp {
       if (isLocal) {
         this.localPlayer = new LocalPlayerController(avatar, this.camera!);
         this.ui.setScore(player.score);
+        this.ui.setProfile(player.total, player.best);
         this.camera!.follow(avatar.root.position);
       } else {
         this.remotePlayers.set(sessionId, avatar);
@@ -124,6 +141,11 @@ export class GameApp {
       (payload: MeteorWarningPayload) => {
         const direction = this.effects?.warn(payload) ?? "하늘";
         this.ui.showMeteorBanner(direction);
+        this.audio.play("meteorWarning");
+        // 경고가 끝날 때쯤 낙하음이 들어오도록 맞춘다.
+        window.setTimeout(() => {
+          this.audio.play("meteorFall");
+        }, Math.max(0, payload.etaMs - 300));
       }
     );
     room.onMessage(
@@ -136,16 +158,22 @@ export class GameApp {
         this.cameraShake = intensity * 0.18;
         this.cameraShakeTime = intensity * 0.45;
         this.ui.hideMeteorBanner();
+        this.audio.play("meteorImpact");
+        // 조각은 충돌 직후 서버 상태로 들어온다. 하나씩 소리를 내면 겹쳐서
+        // 시끄러우므로 충돌음이 지나간 뒤 한 번만 낸다.
+        window.setTimeout(() => this.audio.play("fragmentSpawn"), 420);
       }
     );
     room.onMessage(
       SERVER_MESSAGES.FRAGMENT_COLLECTED,
       (payload: FragmentCollectedPayload) => {
         this.ui.showNotice(`${payload.byNickname} 님이 별 조각을 획득했습니다`);
+        this.audio.play("fragmentCollect");
       }
     );
     room.onMessage(SERVER_MESSAGES.CHAT, (payload: ChatMessagePayload) => {
       this.ui.appendChat(payload.nickname, payload.text);
+      this.audio.play("chat");
     });
     this.ui.onChat((text) => {
       room.send(CLIENT_MESSAGES.CHAT, { text });
@@ -175,6 +203,8 @@ export class GameApp {
   ): void {
     if (sessionId === localSessionId) {
       this.ui.setScore(player.score);
+      // 지난 기록은 서버가 저장소를 읽은 뒤 채우므로 입장보다 조금 늦게 온다.
+      this.ui.setProfile(player.total, player.best);
       return;
     }
     const avatar = this.remotePlayers.get(sessionId);

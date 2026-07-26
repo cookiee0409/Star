@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .vite/
+# 점수 저장 파일. 서버가 만들고 배포마다 내용이 다르다.
+apps/server/data/
 coverage/
 .env
 .agents/

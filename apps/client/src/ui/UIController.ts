@@ -24,6 +24,9 @@ export class UIController {
     requireElement<HTMLElement>("connection-status");
   private readonly hudNickname = requireElement<HTMLElement>("hud-nickname");
   private readonly hudScore = requireElement<HTMLElement>("hud-score");
+  private readonly hudProfile = requireElement<HTMLElement>("hud-profile");
+  private readonly hudTotal = requireElement<HTMLElement>("hud-total");
+  private readonly hudBest = requireElement<HTMLElement>("hud-best");
   private readonly hudPlayers = requireElement<HTMLElement>("hud-players");
   private readonly hudTimer = requireElement<HTMLElement>("hud-timer");
   private readonly collectPrompt = requireElement<HTMLElement>("collect-prompt");
@@ -37,6 +40,10 @@ export class UIController {
   private readonly chatLog = requireElement<HTMLElement>("chat-log");
   private readonly chatForm = requireElement<HTMLFormElement>("chat-form");
   private readonly chatInput = requireElement<HTMLInputElement>("chat-input");
+  private readonly audioToggle = requireElement<HTMLButtonElement>("audio-toggle");
+  private readonly audioSliders = requireElement<HTMLElement>("audio-sliders");
+  private readonly sfxRange = requireElement<HTMLInputElement>("volume-sfx");
+  private readonly musicRange = requireElement<HTMLInputElement>("volume-music");
 
   private bannerTimeout: number | undefined;
   private noticeTimeout: number | undefined;
@@ -113,6 +120,31 @@ export class UIController {
     this.chatForm.classList.add("is-hidden");
   }
 
+  /**
+   * 소리 설정을 연결한다.
+   *
+   * 슬라이더의 현재 값은 AudioController 가 들고 있으므로(저장까지 그쪽 몫이다)
+   * 여기서는 초기값을 받아 표시하고, 움직이면 그대로 넘긴다.
+   */
+  bindAudioControls(
+    initial: { sfx: number; music: number },
+    onChange: (kind: "sfx" | "music", value: number) => void
+  ): void {
+    this.sfxRange.value = String(Math.round(initial.sfx * 100));
+    this.musicRange.value = String(Math.round(initial.music * 100));
+
+    this.audioToggle.addEventListener("click", () => {
+      const open = this.audioSliders.classList.toggle("is-hidden");
+      this.audioToggle.setAttribute("aria-expanded", String(!open));
+    });
+    this.sfxRange.addEventListener("input", () => {
+      onChange("sfx", Number(this.sfxRange.value) / 100);
+    });
+    this.musicRange.addEventListener("input", () => {
+      onChange("music", Number(this.musicRange.value) / 100);
+    });
+  }
+
   onJoin(handler: (nickname: string) => Promise<void>): void {
     this.joinForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -159,6 +191,17 @@ export class UIController {
 
   setScore(score: number): void {
     this.hudScore.textContent = String(score);
+  }
+
+  /** 지난 기록. 처음 온 사람에게는 0만 보여줄 이유가 없어 숨긴다. */
+  setProfile(total: number, best: number): void {
+    if (total <= 0 && best <= 0) {
+      this.hudProfile.classList.add("is-hidden");
+      return;
+    }
+    this.hudTotal.textContent = String(total);
+    this.hudBest.textContent = String(best);
+    this.hudProfile.classList.remove("is-hidden");
   }
 
   setPlayerCount(count: number): void {

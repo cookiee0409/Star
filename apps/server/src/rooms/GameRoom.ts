@@ -12,6 +12,7 @@ import {
   isValidNickname,
   sanitizeChat,
   sanitizeNickname,
+  sanitizePlayerId,
   type ChatMessagePayload,
   type ChatPayload,
   type CollectPayload,
@@ -31,6 +32,7 @@ import {
   randomMeteorDelayMs
 } from "../systems/meteorSystem";
 import { validateAndApplyMovement } from "../systems/movementSystem";
+import { createScoreStore } from "../storage/ScoreStore";
 
 function readMeteorScale(): number {
   const parsed = Number.parseFloat(process.env.METEOR_INTERVAL_SCALE ?? "1");
@@ -45,6 +47,9 @@ export class GameRoom extends Room<{ state: GameState }> {
   private readonly lastCollectAt = new Map<string, number>();
   private readonly lastChatAt = new Map<string, number>();
   private readonly lastChatText = new Map<string, string>();
+  /** 세션 ID(접속마다 바뀜) -> 플레이어 ID(브라우저가 들고 다님). */
+  private readonly playerIds = new Map<string, string>();
+  private readonly store = createScoreStore();
   private scheduleVersion = 0;
   private readonly meteorIntervalScale = readMeteorScale();
 
@@ -138,6 +143,11 @@ export class GameRoom extends Room<{ state: GameState }> {
       throw new Error("닉네임은 문자와 숫자로 2~12자여야 합니다.");
     }
 
+    // 신원이 없거나 형식이 어긋나면 새로 발급한다. 클라이언트가 이걸 받아
+    // 저장해 두면 다음에 와서 기록을 이어받는다.
+    const playerId = sanitizePlayerId(options.playerId) ?? randomUUID();
+    this.playerIds.set(client.sessionId, playerId);
+
     const spawn =
       PLAYER_START_POINTS[this.state.players.size % PLAYER_START_POINTS.length] ??
       PLAYER_START_POINTS[0]!;
@@ -156,10 +166,40 @@ export class GameRoom extends Room<{ state: GameState }> {
     if (this.clients.length === 1 && this.state.nextMeteorAt === 0) {
       this.scheduleNextMeteor();
     }
+
+    // 지난 기록을 상태에 채운다. 저장소가 느리거나 실패해도 입장은 막지 않는다.
+    void this.store
+      .load(playerId)
+      .then((record) => {
+        // 읽는 동안 나갔을 수 있다.
+        const current = this.state.players.get(client.sessionId);
+        if (!current || !record) {
+          return;
+        }
+        current.total = record.total;
+        current.best = record.best;
+      })
+      .catch((error: unknown) => {
+        console.warn("[store] 기록을 읽지 못했습니다.", error);
+      });
   }
 
   onLeave(client: Client): void {
-    const nickname = this.state.players.get(client.sessionId)?.nickname ?? "player";
+    const player = this.state.players.get(client.sessionId);
+    const nickname = player?.nickname ?? "player";
+
+    // 나갈 때 이번 판 점수를 누적에 반영한다. 조각을 주울 때마다 쓰면 방이
+    // 붐빌 때 저장이 잦아지고, 어차피 이 게임엔 중간 이탈로 잃을 게 없다.
+    const playerId = this.playerIds.get(client.sessionId);
+    if (playerId && player && player.score > 0) {
+      void this.store
+        .record(playerId, nickname, player.score)
+        .catch((error: unknown) => {
+          console.warn("[store] 기록을 저장하지 못했습니다.", error);
+        });
+    }
+    this.playerIds.delete(client.sessionId);
+
     this.state.players.delete(client.sessionId);
     this.lastMoveAt.delete(client.sessionId);
     this.lastCollectAt.delete(client.sessionId);

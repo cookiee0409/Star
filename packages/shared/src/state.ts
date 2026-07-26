@@ -19,6 +19,15 @@ export class PlayerState extends Schema {
   @type("number") rotationY = 0;
   @type("string") moveState: MoveState = "idle";
   @type("number") score = 0;
+  /**
+   * 지난 판까지의 누적 수집 개수와 한 판 최고 기록.
+   *
+   * 일회성 메시지로 보내지 않고 상태에 싣는 이유: 서버는 입장 직후 저장소를
+   * 읽어 채우는데, 그 시점이 클라이언트가 메시지 핸들러를 다는 시점보다
+   * 빠를 수 있다. 상태는 언제 바뀌든 동기화되므로 이 경합이 없다.
+   */
+  @type("number") total = 0;
+  @type("number") best = 0;
 }
 
 export class FragmentState extends Schema {

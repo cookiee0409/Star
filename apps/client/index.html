@@ -74,6 +74,10 @@
           <span id="hud-score">0</span>
           <span class="score-unit">조각</span>
         </div>
+        <div id="hud-profile" class="profile-row is-hidden">
+          누적 <strong id="hud-total">0</strong> · 최고
+          <strong id="hud-best">0</strong>
+        </div>
       </div>
 
       <div class="hud-card room-card">
@@ -118,6 +122,22 @@
             spellcheck="false"
           />
         </form>
+      </div>
+
+      <div class="audio-panel">
+        <button id="audio-toggle" type="button" aria-expanded="false" title="소리 설정">
+          ♪
+        </button>
+        <div id="audio-sliders" class="audio-sliders is-hidden">
+          <label>
+            <span>효과음</span>
+            <input id="volume-sfx" type="range" min="0" max="100" step="5" />
+          </label>
+          <label>
+            <span>음악</span>
+            <input id="volume-music" type="range" min="0" max="100" step="5" />
+          </label>
+        </div>
       </div>
 
       <div class="control-hint">
