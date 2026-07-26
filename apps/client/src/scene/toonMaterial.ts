@@ -16,20 +16,12 @@
 // (머티리얼 이름에만 쓰이고, 이름은 셰이더로 흘러가지 않는다).
 import type { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Vector3, Vector4 } from "@babylonjs/core/Maths/math.vector";
 import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Scene } from "@babylonjs/core/scene";
 import { CustomMaterial } from "@babylonjs/materials/custom/customMaterial";
-// 외곽선 셰이더를 미리 등록한다(부수효과 import).
-//
-// outlineRenderer 는 셰이더 소스를 동적 import 로 가져오는데, Vite 가 Babylon 을
-// 사전 번들링하면서 그 경로가 깨진다. 그러면 Babylon 은 이름으로 .fx 파일을
-// HTTP 요청하고, 개발 서버는 없는 경로에 index.html 을 돌려준다. 셰이더 자리에
-// HTML 이 들어가 컴파일이 깨지고, 외곽선 패스가 메시 위에 쓰레기를 덮어쓴다.
-// 캐릭터가 무지개로, 바위가 검게 나온 원인이었다(외곽선을 쓰지 않는 바닥만 멀쩡했다).
-import "@babylonjs/core/Shaders/outline.vertex";
-import "@babylonjs/core/Shaders/outline.fragment";
+import { getPaperTexture } from "./paperTexture";
 
 /** Material.MATERIAL_OPAQUE / MATERIAL_ALPHATEST. 상수 둘 때문에 core 를 더 끌어오지 않는다. */
 const MATERIAL_OPAQUE = 0;
@@ -42,8 +34,11 @@ export const MATERIAL_ALPHATEST = 1;
  * 값을 바꾸면(예: TOON.shade.set(...)) 다음 프레임부터 전부 반영된다.
  */
 export const TOON = {
-  /** 그림자 색. 알베도에 곱한다. 검정 대신 한색이라 아니메 특유의 보라 그림자가 된다. */
-  shade: new Color3(0.66, 0.63, 0.82),
+  /**
+   * 그림자 색. 알베도에 곱한다. 검정 대신 한색이라 그늘이 어두워지는 대신
+   * "색이 달라진다". 하늘·안개와 같은 청록 계열로 맞춰 화면 전체를 한 색으로 묶는다.
+   */
+  shade: new Color3(0.58, 0.73, 0.75),
   /**
    * x: 명암 경계 위치, y: 경계 부드러움(0에 가까울수록 칼같이), z: 밝은 면 밝기
    *
@@ -54,9 +49,29 @@ export const TOON = {
   ramp: new Vector3(0.32, 0.04, 1),
   /** 역광 테두리 색 */
   rimColor: new Color3(1, 0.95, 0.85),
-  /** 림 라이트 기본값 — x: 두께(클수록 얇게), y: 세기, z: 그늘진 쪽에 남길 비율 */
-  rim: new Vector3(2, 0.9, 0.25)
+  /**
+   * 림 라이트 기본값 — x: 두께(클수록 얇게), y: 세기, z: 그늘진 쪽에 남길 비율
+   *
+   * 세기를 낮게 둔다. 테두리 하이라이트는 "3D 게임"의 신호라, 손으로 칠한
+   * 배경화에서는 거의 쓰지 않는다. 실루엣을 살짝 띄우는 정도만 남긴다.
+   */
+  rim: new Vector3(2, 0.22, 0.25),
+  /**
+   * 종이결 — x: 화면 몇 픽셀마다 무늬가 반복되는가, y: 그늘에서의 세기,
+   * z: 밝은 면에서의 세기, w: 명암 경계를 흐트러뜨리는 정도
+   *
+   * 그늘을 더 세게 준다. 손으로 칠한 그림은 밝은 면보다 그늘에 붓자국이
+   * 많이 남는다. 양쪽을 똑같이 주면 화면 전체가 그냥 지저분해 보인다.
+   *
+   * w 는 조금만 준다. 키우면 경계가 아니라 화면이 지글거린다.
+   */
+  grain: new Vector4(300, 0.34, 0.12, 0.05)
 };
+
+/** 잉크 선 색. 순검정 대신 청록을 섞어 하늘·그늘과 같은 계열로 둔다. */
+export const OUTLINE_COLOR = new Color3(0.06, 0.09, 0.11);
+/** 기준 거리(CONFIG.CAM_DISTANCE)에서의 선 굵기. PlayerAvatar 가 거리에 맞춰 조절한다. */
+export const OUTLINE_WIDTH = 0.045;
 
 /**
  * 최종 색을 우리 계산으로 갈아끼운다.
@@ -73,10 +88,23 @@ export const TOON = {
  *
  * max(uToonRamp.y, ...) 는 경계 폭을 0 으로 두지 않기 위한 것이다.
  * smoothstep 은 두 경계값이 같으면 결과가 정의되지 않는다.
+ *
+ * 종이결(uToonPaper)은 두 군데에 쓴다.
+ *
+ * 1. 명암을 끊기 "전"에 밝기 값을 흔든다(uToonGrain.w).
+ *    계산된 경계는 형상을 따라 매끄럽게 떨어져 기계로 그은 선처럼 보인다.
+ *    손으로 칠한 그늘은 경계가 울퉁불퉁하다. 끊기 전에 값을 조금 흔들면 같은
+ *    인상이 난다. 모델 텍스처를 바꾸지 않고 "칠한 느낌"에 가장 가까이 가는 방법이다.
+ * 2. 색을 정한 "뒤"에 곱해 표면에 결을 남긴다(uToonGrain.y·z).
  */
 const TOON_SHADING = /* glsl */ `
   vec3 toonAlbedo = baseColor.rgb * diffuseColor;
   float toonLevel = dot(diffuseBase, vec3(0.299, 0.587, 0.114));
+
+  vec2 toonGrainUv = gl_FragCoord.xy / max(uToonGrain.x, 1.0);
+  float toonGrain = texture2D(uToonPaper, toonGrainUv).r;
+  toonLevel += (toonGrain - 0.5) * uToonGrain.w;
+
   float toonLit = smoothstep(uToonRamp.x, uToonRamp.x + max(uToonRamp.y, 0.001), toonLevel);
   vec3 toonColor = mix(toonAlbedo * uToonShade, toonAlbedo * uToonRamp.z, toonLit);
 
@@ -84,10 +112,13 @@ const TOON_SHADING = /* glsl */ `
   float toonRim = pow(toonFresnel, max(uToonRim.x, 0.001)) * uToonRim.y;
   toonColor += uToonRimColor * (toonRim * mix(uToonRim.z, 1.0, toonLit));
 
+  float toonGrainAmount = mix(uToonGrain.z, uToonGrain.y, 1.0 - toonLit);
+  toonColor *= 1.0 + (toonGrain - 0.5) * toonGrainAmount;
+
   color.rgb = toonColor;
 `;
 
-/** 주입 코드가 쓰는 유니폼. 순서는 아래 값 배열과 맞춘다. */
+/** 주입 코드가 쓰는 vec3 유니폼. 순서는 아래 값 배열과 맞춘다. */
 const TOON_UNIFORMS = [
   "uToonShade",
   "uToonRamp",
@@ -186,6 +217,10 @@ export function createToonMaterial(
   TOON_UNIFORMS.forEach((uniform, index) => {
     material.AddUniform(uniform, "vec3", values[index]);
   });
+  material.AddUniform("uToonGrain", "vec4", TOON.grain);
+  // 종이결은 텍스처라 종류가 다르다. AddUniform 이 "sampler" 가 들어간 선언을
+  // 유니폼이 아니라 샘플러 목록으로 보내 준다(customMaterial.js 의 ReviewUniform).
+  material.AddUniform("uToonPaper", "sampler2D", getPaperTexture(scene));
   material.Fragment_Before_Fog(TOON_SHADING);
 
   if (options.texture) {

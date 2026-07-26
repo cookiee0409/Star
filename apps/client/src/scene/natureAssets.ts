@@ -16,12 +16,12 @@ import "@babylonjs/core/Rendering/outlineRenderer";
 import "@babylonjs/loaders/glTF/2.0";
 import {
   MATERIAL_ALPHATEST,
+  OUTLINE_COLOR,
   enableToonOutline,
   getToonMaterial
 } from "./toonMaterial";
 
 const ASSET_DIR = "/assets/nature/";
-const OUTLINE_COLOR = new Color3(0.05, 0.04, 0.09);
 
 export interface NatureAsset {
   /** ASSET_DIR 기준 파일명 */

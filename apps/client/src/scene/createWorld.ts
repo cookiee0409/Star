@@ -1,16 +1,24 @@
 import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
+import { ColorCurves } from "@babylonjs/core/Materials/colorCurves";
+import { ImageProcessingConfiguration } from "@babylonjs/core/Materials/imageProcessingConfiguration";
 import type { Material } from "@babylonjs/core/Materials/material";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { Color3, Color4 } from "@babylonjs/core/Maths/math.color";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
-import type { Scene } from "@babylonjs/core/scene";
+import { Scene } from "@babylonjs/core/scene";
 // mesh.renderOutline 은 이 모듈이 붙여 주는 기능이라 부수효과 import 가 필요하다.
 import "@babylonjs/core/Rendering/outlineRenderer";
 import { CONFIG, WORLD_OBSTACLES, isWalkable } from "@starfall/shared";
-import { enableToonOutline, getToonMaterial } from "./toonMaterial";
+import { createSunShadows } from "./shadows";
+import { SKY_HORIZON, getSkyTexture } from "./skyTexture";
+import {
+  OUTLINE_COLOR,
+  enableToonOutline,
+  getToonMaterial
+} from "./toonMaterial";
 import {
   NATURE_ASSETS,
   fitScale,
@@ -18,6 +26,16 @@ import {
   placeInstance,
   type NatureTemplates
 } from "./natureAssets";
+
+// 초목 밀도. 하나하나가 드로우콜이고, 외곽선이 켜진 것은 두 번 그려진다.
+// 프레임이 떨어지면 여기부터 줄인다.
+const CLUSTER_COUNT = 26;
+const CLUSTER_RADIUS_MIN = 4;
+const CLUSTER_RADIUS_MAX = 11;
+const CLUSTER_MIN = 6;
+const CLUSTER_MAX = 18;
+const SCATTER_ATTEMPTS = 200;
+const BORDER_TREES = 90;
 
 /** 배치를 매번 같게 하려고 쓰는 고정 시드 난수. */
 function seededRandom(seed: number): () => number {
@@ -28,53 +46,112 @@ function seededRandom(seed: number): () => number {
   };
 }
 
+interface DecorKind {
+  readonly template: Mesh | undefined;
+  readonly weight: number;
+  readonly height: number;
+  readonly outline: number;
+}
+
+/** 캐릭터 키가 약 1.7m 다. 나무는 그보다 확실히 커야 숲처럼 보인다. */
+function decorKinds(templates: NatureTemplates): DecorKind[] {
+  return [
+    { template: templates.grass, weight: 14, height: 0.45, outline: NATURE_ASSETS.grass.outlineWidth },
+    { template: templates.fern, weight: 9, height: 0.6, outline: NATURE_ASSETS.fern.outlineWidth },
+    { template: templates.bush, weight: 7, height: 0.9, outline: NATURE_ASSETS.bush.outlineWidth },
+    { template: templates.rock, weight: 4, height: 0.7, outline: NATURE_ASSETS.rock.outlineWidth },
+    { template: templates.pine, weight: 4, height: 4.5, outline: NATURE_ASSETS.pine.outlineWidth },
+    { template: templates.treeAlt, weight: 3, height: 4, outline: NATURE_ASSETS.treeAlt.outlineWidth }
+  ].filter((kind) => kind.template !== undefined);
+}
+
+function pickKind(kinds: DecorKind[], roll: number): DecorKind {
+  const total = kinds.reduce((sum, kind) => sum + kind.weight, 0);
+  let remaining = roll * total;
+  return kinds.find((kind) => (remaining -= kind.weight) < 0) ?? kinds[0]!;
+}
+
 /**
- * 충돌 판정이 없는 장식용 초목을 흩뿌린다.
+ * 충돌 판정이 없는 장식용 초목을 배치한다.
  * 서버가 아는 통행 가능 영역만 쓰므로 플레이에 영향을 주지 않는다.
+ *
+ * 균일하게 흩뿌리지 않는다. 그렇게 하면 밀도가 고를 뿐 어디를 봐도 똑같아서
+ * 넓은 잔디밭에 물건이 놓인 것처럼 보인다. 실제 숲은 덤불이 몰린 곳과 트인
+ * 곳이 번갈아 나온다. 군집 중심을 몇 개 잡고 그 주위에 몰아 심어, 시선이
+ * 지나가며 빽빽한 곳과 트인 곳을 번갈아 만나게 한다.
  */
 function scatterDecorations(templates: NatureTemplates): void {
-  // 큰 나무는 드물게, 작은 풀은 흔하게 섞어 밀도에 변화를 준다.
-  // 캐릭터 키가 약 2.25m 다. 나무는 그보다 확실히 크되 화면을 다 덮지 않게 잡는다.
-  const kinds = [
-    { template: templates.grass, weight: 12, height: 0.45, outline: NATURE_ASSETS.grass.outlineWidth },
-    { template: templates.fern, weight: 8, height: 0.6, outline: NATURE_ASSETS.fern.outlineWidth },
-    { template: templates.bush, weight: 5, height: 0.9, outline: NATURE_ASSETS.bush.outlineWidth },
-    { template: templates.rock, weight: 4, height: 0.7, outline: NATURE_ASSETS.rock.outlineWidth },
-    { template: templates.pine, weight: 2, height: 4.5, outline: NATURE_ASSETS.pine.outlineWidth },
-    { template: templates.treeAlt, weight: 1, height: 4, outline: NATURE_ASSETS.treeAlt.outlineWidth }
-  ].filter((kind) => kind.template !== undefined);
-
+  const kinds = decorKinds(templates);
   if (kinds.length === 0) {
     return;
   }
 
-  const totalWeight = kinds.reduce((sum, kind) => sum + kind.weight, 0);
   const random = seededRandom(20260725);
   const half = CONFIG.MAP_SIZE / 2 - 4;
   let placed = 0;
 
-  for (let attempt = 0; attempt < 900 && placed < 240; attempt += 1) {
-    const x = (random() * 2 - 1) * half;
-    const z = (random() * 2 - 1) * half;
-    // 장애물 안이나 맵 밖에는 두지 않는다.
+  const place = (x: number, z: number, kind: DecorKind, spread: number): void => {
     if (!isWalkable({ x, z }, 2.2)) {
-      continue;
+      return;
     }
-
-    let roll = random() * totalWeight;
-    const kind = kinds.find((candidate) => (roll -= candidate.weight) < 0) ?? kinds[0]!;
-    const template = kind.template!;
-    const variance = 0.8 + random() * 0.5;
-
+    // 크기 편차를 크게 준다. 같은 나무가 같은 크기로 늘어서면 복사한 티가 난다.
+    const variance = 0.65 + random() * 0.8;
     placeInstance(
-      template,
+      kind.template!,
       `decor-${placed}`,
       new Vector3(x, 0, z),
       random() * Math.PI * 2,
-      fitScale(template, kind.height) * variance,
+      fitScale(kind.template!, kind.height) * variance * spread,
       kind.outline
     );
     placed += 1;
+  };
+
+  // 군집. 중심에서 멀어질수록 확률이 떨어지도록 제곱근을 쓴다.
+  for (let cluster = 0; cluster < CLUSTER_COUNT; cluster += 1) {
+    const cx = (random() * 2 - 1) * half;
+    const cz = (random() * 2 - 1) * half;
+    const radius = CLUSTER_RADIUS_MIN + random() * (CLUSTER_RADIUS_MAX - CLUSTER_RADIUS_MIN);
+    const count = CLUSTER_MIN + Math.floor(random() * (CLUSTER_MAX - CLUSTER_MIN));
+
+    for (let index = 0; index < count; index += 1) {
+      const angle = random() * Math.PI * 2;
+      const distance = Math.sqrt(random()) * radius;
+      place(
+        cx + Math.cos(angle) * distance,
+        cz + Math.sin(angle) * distance,
+        pickKind(kinds, random()),
+        1
+      );
+    }
+  }
+
+  // 군집 사이를 메우는 성긴 배치. 이게 없으면 빈 곳이 너무 휑하다.
+  for (let attempt = 0; attempt < SCATTER_ATTEMPTS; attempt += 1) {
+    place(
+      (random() * 2 - 1) * half,
+      (random() * 2 - 1) * half,
+      pickKind(kinds, random()),
+      1
+    );
+  }
+
+  // 맵 가장자리를 나무로 두른다. 지금은 경계 담장이 그대로 보여 무대 세트처럼
+  // 읽힌다. 큰 나무로 지평선을 막으면 숲 안에 있는 것처럼 보이고, 시선이 맵
+  // 밖으로 새지 않는다.
+  const trees = kinds.filter((kind) => kind.height > 3);
+  if (trees.length > 0) {
+    for (let index = 0; index < BORDER_TREES; index += 1) {
+      const along = (index / BORDER_TREES) * Math.PI * 2;
+      // 완전한 원이 아니라 안팎으로 흔들어 심어야 줄 세운 티가 안 난다.
+      const depth = half - 1 - random() * 7;
+      place(
+        Math.cos(along) * depth,
+        Math.sin(along) * depth,
+        trees[Math.floor(random() * trees.length)]!,
+        1.15
+      );
+    }
   }
 }
 
@@ -108,21 +185,92 @@ function makeToonMaterial(
 
 // 검은 외곽선. 아니메 룩의 핵심이라 툰 음영과 반드시 같이 쓴다.
 function addOutline(mesh: Mesh, width = 0.03): void {
-  enableToonOutline(
-    mesh,
-    mesh.getScene(),
-    width,
-    new Color3(0.05, 0.04, 0.09)
+  enableToonOutline(mesh, mesh.getScene(), width, OUTLINE_COLOR);
+}
+
+/**
+ * 색 보정.
+ *
+ * 후처리 패스를 따로 걸지 않는다. 이 설정은 머티리얼 셰이더 안에서 처리되므로
+ * 드로우콜도 번들도 늘지 않는다.
+ *
+ * 참고한 배경화는 화면 전체가 한 색으로 묶여 있다. 그림자는 차갑고 빛은 따뜻해서
+ * 물체마다 색이 따로 놀지 않는다. 그늘을 청록으로, 밝은 쪽을 살짝 노랗게 밀어
+ * 같은 인상을 만든다.
+ */
+function applyColorGrading(scene: Scene): void {
+  const processing = scene.imageProcessingConfiguration;
+  processing.contrast = 1.25;
+  processing.exposure = 1.06;
+
+  const curves = new ColorCurves();
+  // hue 는 0~360 색상환, density 는 얼마나 물들일지.
+  curves.shadowsHue = 190;
+  curves.shadowsDensity = 34;
+  curves.shadowsSaturation = 8;
+  curves.midtonesHue = 172;
+  curves.midtonesDensity = 12;
+  curves.highlightsHue = 48;
+  curves.highlightsDensity = 16;
+  curves.globalSaturation = 12;
+  processing.colorCurves = curves;
+  processing.colorCurvesEnabled = true;
+
+  // 가장자리를 살짝 눌러 시선을 가운데로 모은다. 순검정 대신 하늘의 청록을
+  // 어둡게 쓴 색이라 화면 색이 흐트러지지 않는다.
+  processing.vignetteEnabled = true;
+  processing.vignetteWeight = 2.4;
+  processing.vignetteColor = new Color4(0.05, 0.13, 0.15, 0);
+  processing.vignetteBlendMode = ImageProcessingConfiguration.VIGNETTEMODE_MULTIPLY;
+}
+
+/**
+ * 하늘 반구.
+ *
+ * infiniteDistance 로 카메라를 따라다니게 해서 아무리 움직여도 끝이 안 보인다.
+ * 안개를 끄지 않으면 하늘 자신이 안개색으로 덮여 그라디언트가 사라진다.
+ *
+ * 색은 emissive 로만 넣고 조명을 끈다. 그래야 텍스처에 그린 값이 화면에 그대로
+ * 나온다(diffuse 로 넣으면 빛을 받아 시간대에 따라 변한다).
+ */
+function createSky(scene: Scene): void {
+  const sky = MeshBuilder.CreateSphere(
+    "sky",
+    { diameter: 400, segments: 24 },
+    scene
   );
+  sky.infiniteDistance = true;
+  sky.isPickable = false;
+  sky.applyFog = false;
+
+  const material = new StandardMaterial("sky-material", scene);
+  material.emissiveTexture = getSkyTexture(scene);
+  material.diffuseColor = Color3.Black();
+  material.specularColor = Color3.Black();
+  material.disableLighting = true;
+  // 우리는 구체 안쪽에 있다.
+  material.backFaceCulling = false;
+  material.fogEnabled = false;
+  sky.material = material;
 }
 
 export async function createWorld(scene: Scene): Promise<void> {
   // 자연 에셋이 있으면 쓰고, 없으면 아래에서 원시 도형으로 되돌아간다.
   const templates = await loadNatureTemplates(scene);
 
-  // 아니메풍은 어두운 대비보다 밝고 평평한 하늘색이 어울린다.
-  scene.clearColor = new Color4(0.55, 0.79, 0.86, 1);
+  // 아니메 배경화는 하늘이 화면의 주인공이다. 단색으로 두면 파란 벽이 된다.
+  // 위는 진한 청록, 지평선 쪽은 옅게 빼서 깊이를 만든다.
+  scene.clearColor = new Color4(SKY_HORIZON.r, SKY_HORIZON.g, SKY_HORIZON.b, 1);
   scene.ambientColor = new Color3(0.3, 0.34, 0.36);
+  createSky(scene);
+
+  // 공기원근. 먼 것이 하늘색으로 날아가면 작은 디오라마처럼 보인다.
+  // 색을 지평선과 똑같이 맞춰야 지면이 하늘로 자연스럽게 이어진다.
+  scene.fogMode = Scene.FOGMODE_EXP2;
+  scene.fogColor = SKY_HORIZON;
+  scene.fogDensity = 0.011;
+
+  applyColorGrading(scene);
 
   const skyLight = new HemisphericLight(
     "sky-light",
@@ -132,7 +280,8 @@ export async function createWorld(scene: Scene): Promise<void> {
   // 툰 음영은 빛이 세면 전부 밝은 쪽으로 뭉쳐 색면이 사라진다.
   // 경계가 보이도록 전체 광량을 낮게 유지한다.
   skyLight.intensity = 0.4;
-  skyLight.diffuse = new Color3(1, 0.98, 0.92);
+  // 하늘빛은 하늘색을 띠어야 화면 전체 색이 하나로 묶인다.
+  skyLight.diffuse = new Color3(0.82, 0.95, 0.96);
   skyLight.groundColor = new Color3(0.4, 0.45, 0.38);
 
   // 해를 머리 위에 두면 세워진 면(캐릭터 몸통·나무 줄기)이 빛을 거의 못 받아
@@ -144,6 +293,7 @@ export async function createWorld(scene: Scene): Promise<void> {
   );
   sunLight.intensity = 0.95;
   sunLight.diffuse = new Color3(1, 0.96, 0.85);
+  createSunShadows(scene, sunLight);
 
   const ground = MeshBuilder.CreateGround(
     "ground",
@@ -170,30 +320,10 @@ export async function createWorld(scene: Scene): Promise<void> {
     new Color3(0.44, 0.6, 0.33),
     0
   );
+  innerGround.receiveShadows = true;
 
-  const pathMaterial = makeMaterial(
-    "path-material",
-    scene,
-    new Color3(0.29, 0.3, 0.34),
-    new Color3(0.018, 0.018, 0.025)
-  );
-  for (let offset = -40; offset <= 40; offset += 10) {
-    const horizontal = MeshBuilder.CreateBox(
-      `path-h-${offset}`,
-      { width: 96, depth: 0.05, height: 0.018 },
-      scene
-    );
-    horizontal.position.set(0, 0.028, offset);
-    horizontal.material = pathMaterial;
-
-    const vertical = MeshBuilder.CreateBox(
-      `path-v-${offset}`,
-      { width: 0.05, depth: 96, height: 0.018 },
-      scene
-    );
-    vertical.position.set(offset, 0.029, 0);
-    vertical.material = pathMaterial;
-  }
+  // 10m 간격 격자선은 걷어냈다. 모눈종이 위에 서 있는 인상을 주는 데다,
+  // 아니메 배경화의 지면은 선이 아니라 색면으로 나뉜다.
 
   const rockMaterials = [
     makeToonMaterial("rock-a", scene, new Color3(0.62, 0.58, 0.52), 0.5),

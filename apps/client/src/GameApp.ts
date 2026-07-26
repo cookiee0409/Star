@@ -216,16 +216,20 @@ export class GameApp {
     }
 
     this.ui.setMeteorTimer(this.nextMeteorAt, effects.isMeteorActive);
-    this.updateCameraShake(deltaSeconds, camera.camera.target);
+    this.updateCameraShake(deltaSeconds, camera.shakeOffset);
   }
 
-  private updateCameraShake(deltaSeconds: number, target: Vector3): void {
+  private updateCameraShake(deltaSeconds: number, offset: Vector3): void {
     if (this.cameraShakeTime <= 0) {
+      offset.setAll(0);
       return;
     }
     this.cameraShakeTime = Math.max(0, this.cameraShakeTime - deltaSeconds);
     const amount = this.cameraShake * (this.cameraShakeTime / 0.45);
-    target.x += (Math.random() - 0.5) * amount;
-    target.y += (Math.random() - 0.5) * amount;
+    offset.set(
+      (Math.random() - 0.5) * amount,
+      (Math.random() - 0.5) * amount,
+      0
+    );
   }
 }

@@ -17,8 +17,11 @@ import type { Scene } from "@babylonjs/core/scene";
 import type { MoveState } from "@starfall/shared";
 import "@babylonjs/core/Rendering/outlineRenderer";
 import "@babylonjs/loaders/glTF/2.0";
+import { addShadowCaster } from "../scene/shadows";
 import {
   MATERIAL_ALPHATEST,
+  OUTLINE_COLOR,
+  OUTLINE_WIDTH,
   enableToonOutline,
   getToonMaterial
 } from "../scene/toonMaterial";
@@ -33,9 +36,8 @@ import {
 const CHARACTER_FILES = ["knight", "barbarian", "mage", "ranger", "rogue"];
 const CHARACTER_DIR = "/assets/character/";
 
-export const OUTLINE_COLOR = new Color3(0.05, 0.04, 0.09);
-/** 기준 거리(CONFIG.CAM_DISTANCE)에서의 선 굵기. PlayerAvatar 가 거리에 맞춰 조절한다. */
-export const OUTLINE_WIDTH = 0.03;
+// 외곽선 색·굵기는 룩 전체가 공유하므로 toonMaterial 에 모여 있다.
+export { OUTLINE_COLOR, OUTLINE_WIDTH } from "../scene/toonMaterial";
 
 /**
  * 머리 확대 배율. 1이면 모델 원래 비율 그대로다.
@@ -86,6 +88,8 @@ function applyToonStyle(mesh: AbstractMesh, scene: Scene, tint?: Color3): void {
   // 정점 색상은 알파 테스트를 막고 음영을 어둡게 만든다. 자연물과 같은 이유로 끈다.
   mesh.hasVertexAlpha = false;
   mesh.useVertexColors = false;
+  // 캐릭터만 그림자를 던진다. 이유는 scene/shadows.ts 참고.
+  addShadowCaster(scene, mesh);
 
   // 외곽선은 메시를 부풀려 뒷면만 그리는 방식이라 양면 렌더링과 함께 쓸 수 없다.
   if (!isCutout) {
