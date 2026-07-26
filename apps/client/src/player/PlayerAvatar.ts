@@ -8,7 +8,7 @@ import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import type { Scene } from "@babylonjs/core/scene";
 import type { MoveState } from "@starfall/shared";
 import "@babylonjs/core/Rendering/outlineRenderer";
-import { getToonMaterial } from "../scene/toonMaterial";
+import { enableToonOutline, getToonMaterial } from "../scene/toonMaterial";
 import {
   OUTLINE_COLOR,
   OUTLINE_WIDTH,
@@ -163,9 +163,7 @@ export class PlayerAvatar {
     body.material = getToonMaterial(scene, `player-material-${sessionId}`, {
       color
     });
-    body.renderOutline = true;
-    body.outlineWidth = OUTLINE_WIDTH * 1.75;
-    body.outlineColor = OUTLINE_COLOR;
+    enableToonOutline(body, scene, OUTLINE_WIDTH * 1.75, OUTLINE_COLOR);
 
     const visor = MeshBuilder.CreateSphere(
       `visor-${sessionId}`,

@@ -17,8 +17,19 @@
 import type { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Scene } from "@babylonjs/core/scene";
 import { CustomMaterial } from "@babylonjs/materials/custom/customMaterial";
+// 외곽선 셰이더를 미리 등록한다(부수효과 import).
+//
+// outlineRenderer 는 셰이더 소스를 동적 import 로 가져오는데, Vite 가 Babylon 을
+// 사전 번들링하면서 그 경로가 깨진다. 그러면 Babylon 은 이름으로 .fx 파일을
+// HTTP 요청하고, 개발 서버는 없는 경로에 index.html 을 돌려준다. 셰이더 자리에
+// HTML 이 들어가 컴파일이 깨지고, 외곽선 패스가 메시 위에 쓰레기를 덮어쓴다.
+// 캐릭터가 무지개로, 바위가 검게 나온 원인이었다(외곽선을 쓰지 않는 바닥만 멀쩡했다).
+import "@babylonjs/core/Shaders/outline.vertex";
+import "@babylonjs/core/Shaders/outline.fragment";
 
 /** Material.MATERIAL_OPAQUE / MATERIAL_ALPHATEST. 상수 둘 때문에 core 를 더 끌어오지 않는다. */
 const MATERIAL_OPAQUE = 0;
@@ -83,6 +94,35 @@ const TOON_UNIFORMS = [
   "uToonRimColor",
   "uToonRim"
 ] as const;
+
+/**
+ * 메시에 외곽선을 켠다. renderOutline 을 직접 만지지 말고 이걸 쓴다.
+ *
+ * 뒤에 붙은 옵저버가 핵심이다. 외곽선은 메시를 한 번 더 그리는 별도 패스인데,
+ * 그 과정에서 텍스처 유닛에 물린 것이 바뀐다. 그런데 Babylon 은 직전에 그린
+ * 메시와 머티리얼·이펙트가 같으면 "다시 묶을 필요 없다"고 보고 본 패스의
+ * 텍스처 바인딩을 통째로 건너뛴다(Material._mustRebind).
+ *
+ * 우리는 같은 캐릭터의 파트들이 머티리얼 한 벌을 공유하므로 이 조건에 정확히
+ * 걸린다. 그러면 본 패스가 외곽선 패스가 남긴 엉뚱한 텍스처를 알베도로 읽어
+ * 캐릭터가 무지개로 깨진다. 외곽선을 끄면 색이 정상으로 돌아오는 것으로 확인했다.
+ *
+ * 그릴 때마다 캐시를 무효화해 항상 다시 묶게 한다. 외곽선이 켜진 메시에만
+ * 붙으므로 비용은 수십 개 수준이다.
+ */
+export function enableToonOutline(
+  mesh: AbstractMesh,
+  scene: Scene,
+  width: number,
+  color: Color3
+): void {
+  mesh.renderOutline = true;
+  mesh.outlineWidth = width;
+  mesh.outlineColor = color;
+  if (mesh instanceof Mesh) {
+    mesh.onBeforeDrawObservable.add(() => scene.resetCachedMaterial());
+  }
+}
 
 export interface ToonOptions {
   /** 디퓨즈 텍스처. 없으면 color 만으로 칠한다. */

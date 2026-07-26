@@ -14,7 +14,11 @@ import type { Scene } from "@babylonjs/core/scene";
 import "@babylonjs/core/Rendering/outlineRenderer";
 // glTF 로더 등록 (부수효과).
 import "@babylonjs/loaders/glTF/2.0";
-import { MATERIAL_ALPHATEST, getToonMaterial } from "./toonMaterial";
+import {
+  MATERIAL_ALPHATEST,
+  enableToonOutline,
+  getToonMaterial
+} from "./toonMaterial";
 
 const ASSET_DIR = "/assets/nature/";
 const OUTLINE_COLOR = new Color3(0.05, 0.04, 0.09);
@@ -90,9 +94,7 @@ function applyToonStyle(mesh: Mesh, scene: Scene, outlineWidth: number): void {
   // 잎에 걸면 부풀린 검은 껍데기가 앞을 덮어 나무가 통째로 까맣게 보인다.
   // 그래서 닫힌 입체(줄기·바위)에만 건다.
   if (!isFoliage) {
-    mesh.renderOutline = true;
-    mesh.outlineWidth = outlineWidth;
-    mesh.outlineColor = OUTLINE_COLOR;
+    enableToonOutline(mesh, scene, outlineWidth, OUTLINE_COLOR);
   }
 }
 
@@ -185,9 +187,7 @@ export function placeInstance(
     if (!template.renderOutline) {
       return;
     }
-    mesh.renderOutline = true;
-    mesh.outlineWidth = outlineWidth;
-    mesh.outlineColor = OUTLINE_COLOR;
+    enableToonOutline(mesh, mesh.getScene(), outlineWidth, OUTLINE_COLOR);
   };
 
   restoreOutline(copy, template);

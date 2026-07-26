@@ -17,7 +17,11 @@ import type { Scene } from "@babylonjs/core/scene";
 import type { MoveState } from "@starfall/shared";
 import "@babylonjs/core/Rendering/outlineRenderer";
 import "@babylonjs/loaders/glTF/2.0";
-import { MATERIAL_ALPHATEST, getToonMaterial } from "../scene/toonMaterial";
+import {
+  MATERIAL_ALPHATEST,
+  enableToonOutline,
+  getToonMaterial
+} from "../scene/toonMaterial";
 
 /**
  * 플레이어에게 배정할 캐릭터들.
@@ -85,9 +89,7 @@ function applyToonStyle(mesh: AbstractMesh, scene: Scene, tint?: Color3): void {
 
   // 외곽선은 메시를 부풀려 뒷면만 그리는 방식이라 양면 렌더링과 함께 쓸 수 없다.
   if (!isCutout) {
-    mesh.renderOutline = true;
-    mesh.outlineWidth = OUTLINE_WIDTH;
-    mesh.outlineColor = OUTLINE_COLOR;
+    enableToonOutline(mesh, scene, OUTLINE_WIDTH, OUTLINE_COLOR);
   }
 }
 

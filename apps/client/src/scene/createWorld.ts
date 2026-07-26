@@ -10,7 +10,7 @@ import type { Scene } from "@babylonjs/core/scene";
 // mesh.renderOutline 은 이 모듈이 붙여 주는 기능이라 부수효과 import 가 필요하다.
 import "@babylonjs/core/Rendering/outlineRenderer";
 import { CONFIG, WORLD_OBSTACLES, isWalkable } from "@starfall/shared";
-import { getToonMaterial } from "./toonMaterial";
+import { enableToonOutline, getToonMaterial } from "./toonMaterial";
 import {
   NATURE_ASSETS,
   fitScale,
@@ -106,11 +106,14 @@ function makeToonMaterial(
   return getToonMaterial(scene, name, { color: diffuse, rim });
 }
 
-// 검은 외곽선. 아니메 룩의 핵심이라 셀 음영과 반드시 같이 쓴다.
+// 검은 외곽선. 아니메 룩의 핵심이라 툰 음영과 반드시 같이 쓴다.
 function addOutline(mesh: Mesh, width = 0.03): void {
-  mesh.renderOutline = true;
-  mesh.outlineWidth = width;
-  mesh.outlineColor = new Color3(0.05, 0.04, 0.09);
+  enableToonOutline(
+    mesh,
+    mesh.getScene(),
+    width,
+    new Color3(0.05, 0.04, 0.09)
+  );
 }
 
 export async function createWorld(scene: Scene): Promise<void> {
