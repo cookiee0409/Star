@@ -34,14 +34,83 @@ export class UIController {
   private readonly fatalErrorMessage =
     requireElement<HTMLElement>("fatal-error-message");
 
+  private readonly chatLog = requireElement<HTMLElement>("chat-log");
+  private readonly chatForm = requireElement<HTMLFormElement>("chat-form");
+  private readonly chatInput = requireElement<HTMLInputElement>("chat-input");
+
   private bannerTimeout: number | undefined;
   private noticeTimeout: number | undefined;
+  private nickname = "";
 
   constructor() {
     this.nicknameInput.addEventListener("input", () => {
       this.nicknameCount.textContent = `${this.nicknameInput.value.length} / 12`;
       this.formError.textContent = "";
     });
+  }
+
+  /**
+   * Enter 로 채팅창을 열고 닫는다.
+   *
+   * 입력창이 열려 있을 때의 Enter 는 form 의 submit 이 가져가므로 여기서
+   * 다루지 않는다. keydown 을 캡처 단계에서 받지 않는 것도 같은 이유다.
+   */
+  onChat(handler: (text: string) => void): void {
+    window.addEventListener("keydown", (event) => {
+      if (event.code !== "Enter" && event.code !== "NumpadEnter") {
+        return;
+      }
+      if (this.startScreen.classList.contains("is-hidden") === false) {
+        return;
+      }
+      if (document.activeElement === this.chatInput) {
+        return;
+      }
+      event.preventDefault();
+      this.chatForm.classList.remove("is-hidden");
+      this.chatInput.focus();
+    });
+
+    this.chatInput.addEventListener("keydown", (event) => {
+      if (event.code === "Escape") {
+        this.closeChat();
+      }
+    });
+
+    this.chatForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const text = this.chatInput.value.trim();
+      this.chatInput.value = "";
+      this.closeChat();
+      if (text.length > 0) {
+        handler(text);
+      }
+    });
+  }
+
+  /**
+   * 채팅 한 줄을 화면에 넣는다.
+   *
+   * 반드시 textContent 로만 넣는다. 남이 보낸 문자열이므로 innerHTML 로 넣으면
+   * 그대로 스크립트가 된다. 서버가 태그를 지우지 않는 것도 이 전제 때문이다.
+   */
+  appendChat(nickname: string, text: string): void {
+    const line = document.createElement("li");
+    const name = document.createElement("span");
+    name.className = "chat-name";
+    name.textContent = nickname;
+    name.dataset.self = String(nickname === this.nickname);
+    line.append(name, document.createTextNode(text));
+    this.chatLog.append(line);
+
+    while (this.chatLog.childElementCount > CONFIG.CHAT_HISTORY) {
+      this.chatLog.firstElementChild?.remove();
+    }
+  }
+
+  private closeChat(): void {
+    this.chatInput.blur();
+    this.chatForm.classList.add("is-hidden");
   }
 
   onJoin(handler: (nickname: string) => Promise<void>): void {
@@ -82,6 +151,7 @@ export class UIController {
   }
 
   enterGame(nickname: string): void {
+    this.nickname = nickname;
     this.hudNickname.textContent = nickname;
     this.startScreen.classList.add("is-hidden");
     this.gameUI.classList.remove("is-hidden");

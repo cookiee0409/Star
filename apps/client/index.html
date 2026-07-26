@@ -106,9 +106,24 @@
 
       <div id="notice" class="notice is-hidden"></div>
 
+      <div class="chat">
+        <ol id="chat-log" class="chat-log" aria-live="polite"></ol>
+        <form id="chat-form" class="chat-form is-hidden">
+          <input
+            id="chat-input"
+            type="text"
+            maxlength="100"
+            placeholder="메시지를 입력하고 Enter"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </form>
+      </div>
+
       <div class="control-hint">
         <span><kbd>WASD</kbd> 이동</span>
         <span><kbd>Shift</kbd> 달리기</span>
+        <span><kbd>Enter</kbd> 채팅</span>
         <span><span class="mouse-icon">◉</span> 우클릭 회전 · 휠 줌</span>
       </div>
     </section>

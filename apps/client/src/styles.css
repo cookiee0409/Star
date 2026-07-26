@@ -478,6 +478,66 @@ kbd {
   font-size: 12px;
 }
 
+/* 채팅. 화면을 가리지 않도록 왼쪽 아래에 붙이고, 입력 중일 때만 배경을 준다. */
+.chat {
+  position: absolute;
+  left: 20px;
+  bottom: 18px;
+  width: min(360px, 32vw);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-log li {
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: rgba(13, 11, 24, 0.5);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 12px;
+  line-height: 1.45;
+  /* 긴 단어 한 덩어리로 창을 넘기지 못하게 한다. */
+  overflow-wrap: anywhere;
+  backdrop-filter: blur(10px);
+}
+
+.chat-log .chat-name {
+  margin-right: 6px;
+  color: #66e4df;
+  font-weight: 600;
+}
+
+.chat-log .chat-name[data-self="true"] {
+  color: #ffd37a;
+}
+
+.chat-form {
+  pointer-events: auto;
+}
+
+.chat-form input {
+  width: 100%;
+  padding: 7px 11px;
+  border: 1px solid rgba(102, 228, 223, 0.35);
+  border-radius: 9px;
+  background: rgba(13, 11, 24, 0.82);
+  color: #fffaff;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+  backdrop-filter: blur(10px);
+}
+
 .control-hint {
   position: absolute;
   right: 20px;

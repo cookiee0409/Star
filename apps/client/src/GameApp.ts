@@ -8,6 +8,7 @@ import {
   CLIENT_MESSAGES,
   CONFIG,
   SERVER_MESSAGES,
+  type ChatMessagePayload,
   type FragmentCollectedPayload,
   type MeteorImpactPayload,
   type MeteorWarningPayload,
@@ -143,6 +144,12 @@ export class GameApp {
         this.ui.showNotice(`${payload.byNickname} 님이 별 조각을 획득했습니다`);
       }
     );
+    room.onMessage(SERVER_MESSAGES.CHAT, (payload: ChatMessagePayload) => {
+      this.ui.appendChat(payload.nickname, payload.text);
+    });
+    this.ui.onChat((text) => {
+      room.send(CLIENT_MESSAGES.CHAT, { text });
+    });
     room.onLeave((code) => {
       this.ui.showFatalError(`연결 종료 코드: ${code}`);
     });

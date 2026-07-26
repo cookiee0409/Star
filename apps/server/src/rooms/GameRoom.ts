@@ -10,7 +10,10 @@ import {
   PlayerState,
   SERVER_MESSAGES,
   isValidNickname,
+  sanitizeChat,
   sanitizeNickname,
+  type ChatMessagePayload,
+  type ChatPayload,
   type CollectPayload,
   type FragmentCollectedPayload,
   type JoinOptions,
@@ -40,6 +43,8 @@ export class GameRoom extends Room<{ state: GameState }> {
 
   private readonly lastMoveAt = new Map<string, number>();
   private readonly lastCollectAt = new Map<string, number>();
+  private readonly lastChatAt = new Map<string, number>();
+  private readonly lastChatText = new Map<string, string>();
   private scheduleVersion = 0;
   private readonly meteorIntervalScale = readMeteorScale();
 
@@ -86,6 +91,46 @@ export class GameRoom extends Room<{ state: GameState }> {
         this.broadcast(SERVER_MESSAGES.FRAGMENT_COLLECTED, event);
       }
     );
+
+    this.onMessage(
+      CLIENT_MESSAGES.CHAT,
+      (client: Client, payload: ChatPayload) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !payload || typeof payload.text !== "string") {
+          return;
+        }
+        // 길이 제한을 붙여 자르기 전에 통째로 정규화하면 아주 긴 문자열에
+        // 정규식을 돌리게 된다. 먼저 넉넉히 자른 뒤 다듬는다.
+        const text = sanitizeChat(
+          payload.text.slice(0, CONFIG.CHAT_MAX_LENGTH * 4),
+          CONFIG.CHAT_MAX_LENGTH
+        );
+        if (text.length === 0) {
+          return;
+        }
+
+        const now = Date.now();
+        const previous = this.lastChatAt.get(client.sessionId) ?? 0;
+        if (now - previous < CONFIG.CHAT_COOLDOWN_MS) {
+          return;
+        }
+        // 같은 말을 연달아 보내는 것도 도배다.
+        if (this.lastChatText.get(client.sessionId) === text) {
+          return;
+        }
+        this.lastChatAt.set(client.sessionId, now);
+        this.lastChatText.set(client.sessionId, text);
+
+        // 보낸 사람은 서버가 아는 닉네임으로 고정한다.
+        // 클라이언트가 보낸 이름을 그대로 쓰면 남을 사칭할 수 있다.
+        const message: ChatMessagePayload = {
+          nickname: player.nickname,
+          text,
+          at: now
+        };
+        this.broadcast(SERVER_MESSAGES.CHAT, message);
+      }
+    );
   }
 
   onJoin(client: Client, options: JoinOptions): void {
@@ -118,6 +163,8 @@ export class GameRoom extends Room<{ state: GameState }> {
     this.state.players.delete(client.sessionId);
     this.lastMoveAt.delete(client.sessionId);
     this.lastCollectAt.delete(client.sessionId);
+    this.lastChatAt.delete(client.sessionId);
+    this.lastChatText.delete(client.sessionId);
 
     console.log(
       `[room:${this.roomId}] ${nickname} left (${this.clients.length}/${this.maxClients})`

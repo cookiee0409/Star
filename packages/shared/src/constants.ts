@@ -32,6 +32,12 @@ export const CONFIG = {
   MAX_PLAYERS: 8,
   PLAYER_RADIUS: 0.55,
   COLLECT_REQUEST_COOLDOWN_MS: 150,
+  // 채팅
+  CHAT_MAX_LENGTH: 100,
+  /** 화면에 남겨 두는 최근 줄 수. */
+  CHAT_HISTORY: 10,
+  /** 같은 사람이 다음 줄을 보낼 수 있을 때까지의 간격. 도배를 막는다. */
+  CHAT_COOLDOWN_MS: 700,
   REMOTE_INTERPOLATION: 0.16,
   NAMEPLATE_HIDE_DISTANCE: 34
 } as const;
