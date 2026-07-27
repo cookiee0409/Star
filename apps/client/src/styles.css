@@ -553,20 +553,6 @@ kbd {
   transition: background-color 0.2s ease;
 }
 
-.stamina-meter {
-  margin-top: 6px;
-  height: 3px;
-}
-
-.stamina-meter .meter-fill {
-  background: #66e4df;
-}
-
-/* 바닥나면 색으로 알린다. 숫자를 읽을 여유가 없는 순간이다. */
-.stamina-meter .meter-fill[data-empty="true"] {
-  background: #e4667a;
-}
-
 .gauge-meter {
   width: 74px;
   height: 4px;

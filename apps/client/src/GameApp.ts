@@ -180,6 +180,12 @@ export class GameApp {
     room.onMessage(SERVER_MESSAGES.CHAT, (payload: ChatMessagePayload) => {
       this.ui.appendChat(payload.nickname, payload.text);
       this.audio.play("chat");
+      // 말풍선은 닉네임이 아니라 세션으로 찾는다. 이름은 겹칠 수 있다.
+      const speaker =
+        payload.sessionId === room.sessionId
+          ? this.localPlayer?.avatar
+          : this.remotePlayers.get(payload.sessionId);
+      speaker?.say(payload.text);
     });
     this.ui.onChat((text) => {
       room.send(CLIENT_MESSAGES.CHAT, { text });
@@ -238,13 +244,11 @@ export class GameApp {
       this.ui.setScore(player.score);
       // 지난 기록은 서버가 저장소를 읽은 뒤 채우므로 입장보다 조금 늦게 온다.
       this.ui.setProfile(player.total, player.best);
-      // 서버가 최종 판정이므로 예측값을 여기서 맞춘다.
-      this.localPlayer?.syncStamina(player.stamina);
       this.hasForecast = player.hasForecast;
       return;
     }
     const avatar = this.remotePlayers.get(sessionId);
-    avatar?.setNetworkTarget(player.x, player.z, player.rotationY);
+    avatar?.setNetworkTarget(player.x, player.y, player.z, player.rotationY);
     // 이동 상태는 서버가 동기화해 주므로 그대로 애니메이션에 넘긴다.
     avatar?.setMoveState(player.moveState);
   }
@@ -276,8 +280,6 @@ export class GameApp {
       this.sendAccumulator %= sendInterval;
       sendMove(localPlayer.snapshot());
     }
-
-    this.ui.setStamina(localPlayer.staminaRatio);
 
     const observation = this.observation?.update(
       deltaSeconds,

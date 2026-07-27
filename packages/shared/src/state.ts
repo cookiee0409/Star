@@ -16,6 +16,8 @@ export class PlayerState extends Schema {
   @type("string") nickname = "";
   @type("number") x = 0;
   @type("number") z = 0;
+  /** 지면 위 높이(m). 점프 중에만 0 보다 크다. */
+  @type("number") y = 0;
   @type("number") rotationY = 0;
   @type("string") moveState: MoveState = "idle";
   @type("number") score = 0;
@@ -28,8 +30,6 @@ export class PlayerState extends Schema {
    */
   @type("number") total = 0;
   @type("number") best = 0;
-  /** 남은 달리기 시간(초). 서버가 계산하고 클라이언트는 표시만 한다. */
-  @type("number") stamina = 0;
   /** 다음 별똥별 예보를 받아 둔 상태인가. 관측으로 얻는다. */
   @type("boolean") hasForecast = false;
 }

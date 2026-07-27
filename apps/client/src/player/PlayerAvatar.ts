@@ -85,10 +85,76 @@ function createNameplate(
   return plane;
 }
 
+/** 말풍선이 떠 있는 시간(초). */
+const BUBBLE_SECONDS = 4.5;
+const BUBBLE_WIDTH = 512;
+const BUBBLE_HEIGHT = 160;
+
+/**
+ * 말풍선 텍스처를 다시 그린다.
+ *
+ * 캔버스라 글자 수에 맞춰 배경 폭을 재야 한다. 너무 긴 말은 두 줄로 접고,
+ * 그래도 넘치면 잘라낸다 — 채팅은 서버에서 100자로 제한된다.
+ */
+function drawBubble(texture: DynamicTexture, text: string): void {
+  const context = texture.getContext() as unknown as CanvasRenderingContext2D;
+  context.clearRect(0, 0, BUBBLE_WIDTH, BUBBLE_HEIGHT);
+  context.font = "600 34px sans-serif";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+
+  const lines: string[] = [];
+  let line = "";
+  for (const character of text) {
+    const candidate = line + character;
+    if (context.measureText(candidate).width > BUBBLE_WIDTH - 90 && line) {
+      lines.push(line);
+      line = character;
+      if (lines.length === 2) {
+        break;
+      }
+    } else {
+      line = candidate;
+    }
+  }
+  if (lines.length < 2 && line) {
+    lines.push(line);
+  }
+
+  const widest = Math.max(...lines.map((entry) => context.measureText(entry).width));
+  const boxWidth = Math.min(BUBBLE_WIDTH - 16, widest + 54);
+  const boxHeight = lines.length > 1 ? 108 : 68;
+  const left = (BUBBLE_WIDTH - boxWidth) / 2;
+  const top = (BUBBLE_HEIGHT - boxHeight) / 2 - 8;
+
+  context.fillStyle = "rgba(255, 250, 255, 0.94)";
+  context.beginPath();
+  context.roundRect(left, top, boxWidth, boxHeight, 24);
+  context.fill();
+
+  // 꼬리. 아래를 가리켜 누가 한 말인지 분명해진다.
+  context.beginPath();
+  context.moveTo(BUBBLE_WIDTH / 2 - 13, top + boxHeight - 2);
+  context.lineTo(BUBBLE_WIDTH / 2 + 13, top + boxHeight - 2);
+  context.lineTo(BUBBLE_WIDTH / 2, top + boxHeight + 22);
+  context.closePath();
+  context.fill();
+
+  context.fillStyle = "#171326";
+  lines.forEach((entry, index) => {
+    const offset = lines.length > 1 ? index * 40 - 20 : 0;
+    context.fillText(entry, BUBBLE_WIDTH / 2, top + boxHeight / 2 + offset);
+  });
+  texture.update();
+}
+
 export class PlayerAvatar {
   /** 발이 닿는 지점. 위치·회전은 항상 이 노드가 기준이다. */
   readonly root: Mesh;
   readonly nameplate: Mesh;
+  private readonly bubble: Mesh;
+  private readonly bubbleTexture: DynamicTexture;
+  private bubbleTimer: number | undefined;
   private targetPosition: Vector3;
   private targetRotation = 0;
   private readonly isLocal: boolean;
@@ -126,12 +192,36 @@ export class PlayerAvatar {
     }
 
     // 이름표는 모델 키에 맞춰 올린다. 캐릭터를 바꿔도 붕 뜨거나 겹치지 않는다.
-    this.nameplate = createNameplate(
-      nickname,
-      scene,
-      this.root,
-      this.measureHeight() + 0.35
+    const headHeight = this.measureHeight() + 0.35;
+    this.nameplate = createNameplate(nickname, scene, this.root, headHeight);
+
+    // 말풍선은 이름표보다 위에 둔다. 겹치면 둘 다 읽기 어렵다.
+    this.bubble = MeshBuilder.CreatePlane(
+      `bubble-${sessionId}`,
+      { width: 2.6, height: 0.82 },
+      scene
     );
+    this.bubble.parent = this.root;
+    this.bubble.position.y = headHeight + 0.62;
+    this.bubble.billboardMode = Mesh.BILLBOARDMODE_ALL;
+    this.bubble.isPickable = false;
+    this.bubble.setEnabled(false);
+
+    this.bubbleTexture = new DynamicTexture(
+      `bubble-texture-${sessionId}`,
+      { width: BUBBLE_WIDTH, height: BUBBLE_HEIGHT },
+      scene,
+      true
+    );
+    this.bubbleTexture.hasAlpha = true;
+    const bubbleMaterial = new StandardMaterial(`bubble-material-${sessionId}`, scene);
+    bubbleMaterial.diffuseTexture = this.bubbleTexture;
+    bubbleMaterial.opacityTexture = this.bubbleTexture;
+    bubbleMaterial.emissiveColor = Color3.White();
+    bubbleMaterial.disableLighting = true;
+    bubbleMaterial.backFaceCulling = false;
+    this.bubble.material = bubbleMaterial;
+
     this.targetPosition = this.root.position.clone();
 
     this.root.getChildMeshes().forEach((mesh) => {
@@ -184,9 +274,26 @@ export class PlayerAvatar {
     this.character?.setMoveState(state);
   }
 
-  setNetworkTarget(x: number, z: number, rotationY: number): void {
-    this.targetPosition.set(x, 0, z);
+  setNetworkTarget(x: number, y: number, z: number, rotationY: number): void {
+    this.targetPosition.set(x, y, z);
     this.targetRotation = rotationY;
+  }
+
+  /**
+   * 머리 위 말풍선.
+   *
+   * 이름표와 같은 방식(빌보드 평면 + 캔버스 텍스처)이다. 남이 보낸 문자열을
+   * 캔버스에 그리므로 DOM 이 아니고, 태그가 실행될 여지가 없다.
+   */
+  say(text: string): void {
+    if (this.bubbleTimer !== undefined) {
+      window.clearTimeout(this.bubbleTimer);
+    }
+    drawBubble(this.bubbleTexture, text);
+    this.bubble.setEnabled(true);
+    this.bubbleTimer = window.setTimeout(() => {
+      this.bubble.setEnabled(false);
+    }, BUBBLE_SECONDS * 1000);
   }
 
   updateRemote(deltaSeconds: number, cameraPosition: Vector3): void {
@@ -205,7 +312,12 @@ export class PlayerAvatar {
     }
 
     const distance = Vector3.Distance(this.root.position, cameraPosition);
-    this.nameplate.setEnabled(distance <= CONFIG.NAMEPLATE_HIDE_DISTANCE);
+    const near = distance <= CONFIG.NAMEPLATE_HIDE_DISTANCE;
+    this.nameplate.setEnabled(near);
+    // 말풍선은 멀면 숨기되, 가까워졌다고 지나간 말이 되살아나면 안 된다.
+    if (!near) {
+      this.bubble.setEnabled(false);
+    }
 
     // 외곽선 두께는 월드 단위라 줌인하면 굵어지고 줌아웃하면 사라진다.
     // 기준 거리에 맞춰 보정해 화면에서 보이는 선 굵기를 일정하게 유지한다.
@@ -217,6 +329,10 @@ export class PlayerAvatar {
   }
 
   dispose(): void {
+    if (this.bubbleTimer !== undefined) {
+      window.clearTimeout(this.bubbleTimer);
+    }
+    this.bubble.material?.dispose(false, true);
     this.character?.dispose();
     // 이름표만 이 아바타의 것이다. 텍스처까지 직접 정리한다.
     // 몸통 머티리얼은 플레이어끼리 공유하므로 여기서 지우면 안 된다.

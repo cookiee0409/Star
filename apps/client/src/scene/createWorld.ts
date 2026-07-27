@@ -96,7 +96,9 @@ function scatterDecorations(templates: NatureTemplates): void {
   let placed = 0;
 
   const place = (x: number, z: number, kind: DecorKind, spread: number): void => {
-    if (!isWalkable({ x, z }, 2.2)) {
+    // 충돌 반지름이 줄기 굵기로 좁아졌으므로 여유도 좁힌다. 예전 값(2.2)을
+    // 그대로 두면 나무마다 풀 한 포기 없는 빈 고리가 생긴다.
+    if (!isWalkable({ x, z }, 0.9)) {
       return;
     }
     // 크기 편차를 크게 준다. 같은 나무가 같은 크기로 늘어서면 복사한 티가 난다.
@@ -337,20 +339,17 @@ export async function createWorld(scene: Scene): Promise<void> {
   ];
 
   WORLD_OBSTACLES.forEach((obstacle, index) => {
-    // 실제 모델이 있으면 그것으로 대체한다.
-    // 충돌 판정은 서버의 WORLD_OBSTACLES 가 그대로 담당하므로,
-    // 모델은 해당 크기에 맞춰 얹기만 한다.
-    const isTree = obstacle.kind === "box";
+    // 충돌 반지름으로 무엇을 놓을지 정한다. 가는 것은 나무 줄기, 굵은 것은
+    // 바위다. 이렇게 해야 화면에 보이는 것과 막히는 자리가 어긋나지 않는다.
+    const isTree = obstacle.kind === "cylinder" && obstacle.radius < 1.2;
     const template = isTree ? templates.tree : templates.rock;
     if (template) {
       placeInstance(
         template,
         `obstacle-${index}`,
         new Vector3(obstacle.x, 0, obstacle.z),
-        isTree ? obstacle.rotationY : index * 1.1,
-        // 나무는 충돌 크기보다 크게 자라야 자연스럽다.
-        // 충돌 판정은 서버의 WORLD_OBSTACLES 가 그대로 담당한다.
-        fitScale(template, obstacle.height * (isTree ? 1.6 : 1.1)),
+        index * 1.1,
+        fitScale(template, obstacle.height),
         isTree
           ? NATURE_ASSETS.tree.outlineWidth
           : NATURE_ASSETS.rock.outlineWidth

@@ -1,4 +1,4 @@
-export type MoveState = "idle" | "walk" | "run";
+export type MoveState = "idle" | "walk" | "run" | "jump";
 
 export interface Point2D {
   x: number;
@@ -6,6 +6,8 @@ export interface Point2D {
 }
 
 export interface MovePayload extends Point2D {
+  /** 지면 위 높이(m). 점프 중에만 0 보다 크다. */
+  y: number;
   rotationY: number;
   moveState: MoveState;
 }
@@ -75,6 +77,11 @@ export interface ChatPayload {
 
 /** 서버가 방 전체에 돌려주는 채팅. 보낸 사람은 서버가 정한다. */
 export interface ChatMessagePayload {
+  /**
+   * 말풍선을 누구 머리 위에 띄울지 정하는 데 쓴다.
+   * 닉네임은 중복될 수 있어 대상을 특정하지 못한다.
+   */
+  sessionId: string;
   nickname: string;
   text: string;
   /** 서버 기준 시각(ms). 클라이언트 시계는 믿지 않는다. */

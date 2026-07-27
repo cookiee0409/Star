@@ -29,6 +29,10 @@ WANTED = {
     "Idle": ("Rig_Medium_General.glb", "Idle_A"),
     "Walk": ("Rig_Medium_MovementBasic.glb", "Walking_A"),
     "Sprint": ("Rig_Medium_MovementBasic.glb", "Running_A"),
+    # 공중 자세. Jump_Full_Short 는 도약~착지가 한 덩어리라 체공 시간이
+    # 입력에 따라 달라지는 우리 점프에는 맞지 않는다. Jump_Idle 이 뜬 상태의
+    # 반복 동작이라 얼마를 떠 있든 자연스럽다.
+    "Jump": ("Rig_Medium_MovementBasic.glb", "Jump_Idle"),
 }
 
 # 모델을 이 키(월드 단위)에 맞춘다. 원본은 2.54 로 커서 그대로 두면

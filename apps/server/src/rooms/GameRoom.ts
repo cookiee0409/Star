@@ -153,6 +153,7 @@ export class GameRoom extends Room<{ state: GameState }> {
         // 보낸 사람은 서버가 아는 닉네임으로 고정한다.
         // 클라이언트가 보낸 이름을 그대로 쓰면 남을 사칭할 수 있다.
         const message: ChatMessagePayload = {
+          sessionId: client.sessionId,
           nickname: player.nickname,
           text,
           at: now
@@ -180,8 +181,6 @@ export class GameRoom extends Room<{ state: GameState }> {
     player.nickname = sanitizeNickname(options.nickname);
     player.x = spawn.x;
     player.z = spawn.z;
-    // 가득 채워 시작한다. 0이면 입장하자마자 달릴 수 없다.
-    player.stamina = CONFIG.STAMINA_MAX;
     this.state.players.set(client.sessionId, player);
     this.lastMoveAt.set(client.sessionId, Date.now());
 

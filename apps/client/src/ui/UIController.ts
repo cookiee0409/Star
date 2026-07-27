@@ -32,7 +32,6 @@ export class UIController {
   private readonly hudProfile = requireElement<HTMLElement>("hud-profile");
   private readonly hudTotal = requireElement<HTMLElement>("hud-total");
   private readonly hudBest = requireElement<HTMLElement>("hud-best");
-  private readonly staminaFill = requireElement<HTMLElement>("stamina-fill");
   private readonly gaugeFill = requireElement<HTMLElement>("gauge-fill");
   private readonly hudConstellation =
     requireElement<HTMLElement>("hud-constellation");
@@ -233,13 +232,6 @@ export class UIController {
       this.constellationProgressLabel.textContent = `${done} / ${need}`;
     }
     this.hudConstellation.classList.remove("is-hidden");
-  }
-
-  /** 남은 달리기(0~1). */
-  setStamina(ratio: number): void {
-    const clamped = Math.min(1, Math.max(0, ratio));
-    this.staminaFill.style.transform = `scaleX(${clamped})`;
-    this.staminaFill.dataset.empty = String(clamped <= 0.001);
   }
 
   /** 방 공동 게이지(0~1). */

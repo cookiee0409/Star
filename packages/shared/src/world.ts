@@ -17,13 +17,28 @@ export interface CylinderObstacle extends Point2D {
 
 export type WorldObstacle = BoxObstacle | CylinderObstacle;
 
+/**
+ * 지나갈 수 없는 것들.
+ *
+ * **반드시 눈에 보이는 것과 크기가 맞아야 한다.** 예전에는 나무 한 그루 자리에
+ * 8×4m 짜리 상자를 두었는데, 화면에는 줄기 굵기 0.6m 짜리 나무만 서 있어서
+ * 그 주위가 통째로 보이지 않는 벽이 되었다.
+ *
+ * 그래서 전부 원기둥이다. 플레이어는 지면에서 걸으므로 판정은 나뭇가지가 아니라
+ * **줄기 굵기**에 맞춘다. 바위는 실제로 바닥을 차지하므로 그만큼 넓게 잡는다.
+ *
+ * height 는 충돌에 쓰이지 않는다(점프로 넘을 수 있는 것은 없다). 화면에 놓을
+ * 모델의 크기를 정하는 값이다.
+ */
 export const WORLD_OBSTACLES: readonly WorldObstacle[] = [
-  { kind: "box", x: -19, z: -12, width: 8, depth: 4, height: 3.5, rotationY: 0.2 },
-  { kind: "box", x: 18, z: 16, width: 5, depth: 9, height: 4.5, rotationY: -0.35 },
-  { kind: "box", x: 27, z: -21, width: 7, depth: 5, height: 2.8, rotationY: 0.45 },
-  { kind: "cylinder", x: -29, z: 22, radius: 3.1, height: 5 },
-  { kind: "cylinder", x: 4, z: -27, radius: 2.6, height: 6 },
-  { kind: "cylinder", x: 0, z: 13, radius: 2.2, height: 3.2 }
+  // 큰 나무. 줄기만 막는다.
+  { kind: "cylinder", x: -19, z: -12, radius: 0.75, height: 6 },
+  { kind: "cylinder", x: 18, z: 16, radius: 0.8, height: 7 },
+  { kind: "cylinder", x: 27, z: -21, radius: 0.7, height: 5.5 },
+  // 바위. 바닥을 실제로 차지하므로 넓다.
+  { kind: "cylinder", x: -29, z: 22, radius: 2.4, height: 4.2 },
+  { kind: "cylinder", x: 4, z: -27, radius: 2, height: 3.6 },
+  { kind: "cylinder", x: 0, z: 13, radius: 1.7, height: 3 }
 ] as const;
 
 export const SPAWN_POINTS: readonly Point2D[] = [

@@ -18,6 +18,7 @@ function isTyping(target: EventTarget | null): boolean {
 export class InputController {
   private readonly pressed = new Set<string>();
   private collectQueued = false;
+  private jumpQueued = false;
 
   constructor() {
     window.addEventListener("keydown", (event) => {
@@ -27,8 +28,14 @@ export class InputController {
         this.pressed.clear();
         return;
       }
-      if (event.repeat && event.code === "KeyE") {
+      // 눌러 두면 계속 발동하는 키가 아니다. 한 번 누를 때 한 번만 센다.
+      if (event.repeat && (event.code === "KeyE" || event.code === "Space")) {
         return;
+      }
+      if (event.code === "Space") {
+        // 스페이스는 기본 동작이 스크롤이다.
+        event.preventDefault();
+        this.jumpQueued = true;
       }
       this.pressed.add(event.code);
       if (event.code === "KeyE") {
@@ -56,6 +63,12 @@ export class InputController {
   consumeCollect(): boolean {
     const queued = this.collectQueued;
     this.collectQueued = false;
+    return queued;
+  }
+
+  consumeJump(): boolean {
+    const queued = this.jumpQueued;
+    this.jumpQueued = false;
     return queued;
   }
 }

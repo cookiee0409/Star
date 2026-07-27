@@ -53,7 +53,11 @@ const HEAD_SCALE = 1;
 const CLIP_NAMES: Record<MoveState, readonly string[]> = {
   idle: ["idle", "idle_a", "breathing", "stand"],
   walk: ["walk", "walking", "walk_forward", "jog"],
-  run: ["run", "running", "sprint", "run_forward"]
+  run: ["run", "running", "sprint", "run_forward"],
+  // "jump_idle" 을 앞에 둔다. "jump" 로만 찾으면 도약~착지가 한 덩어리인
+  // Jump_Full 계열이 먼저 잡혀, 체공 시간이 입력에 따라 달라지는 우리
+  // 점프에서는 공중에 뜬 채로 착지 동작이 재생된다.
+  jump: ["jump_idle", "jump", "fall", "air"]
 };
 
 interface SourceMaterial {
@@ -234,7 +238,8 @@ export function createCharacterInstance(
   const clips: Record<MoveState, AnimationGroup | undefined> = {
     idle: findClip(groups, "idle"),
     walk: findClip(groups, "walk"),
-    run: findClip(groups, "run")
+    run: findClip(groups, "run"),
+    jump: findClip(groups, "jump")
   };
 
   let current: MoveState | undefined;
