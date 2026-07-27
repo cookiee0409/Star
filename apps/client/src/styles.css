@@ -538,6 +538,97 @@ kbd {
   backdrop-filter: blur(10px);
 }
 
+/* 막대 게이지. 스태미나와 방 공동 게이지가 함께 쓴다. */
+.meter {
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.meter-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  transform-origin: left center;
+  transition: background-color 0.2s ease;
+}
+
+.stamina-meter {
+  margin-top: 6px;
+  height: 3px;
+}
+
+.stamina-meter .meter-fill {
+  background: #66e4df;
+}
+
+/* 바닥나면 색으로 알린다. 숫자를 읽을 여유가 없는 순간이다. */
+.stamina-meter .meter-fill[data-empty="true"] {
+  background: #e4667a;
+}
+
+.gauge-meter {
+  width: 74px;
+  height: 4px;
+  margin-top: 3px;
+}
+
+.gauge-meter .meter-fill {
+  background: #ffd37a;
+}
+
+/* 관측 안내. 관측 지점 안에 있을 때만 나온다. */
+.observe-hint {
+  position: absolute;
+  left: 50%;
+  top: 152px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 15px 9px 11px;
+  border: 1px solid rgba(102, 228, 223, 0.25);
+  border-radius: 12px;
+  background: rgba(13, 11, 24, 0.72);
+  transform: translateX(-50%);
+  backdrop-filter: blur(10px);
+}
+
+.observe-hint strong {
+  display: block;
+  color: #fffaff;
+  font-size: 12px;
+}
+
+.observe-hint span {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+}
+
+.observe-ring {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.observe-fill {
+  position: absolute;
+  inset: 0;
+  background: #66e4df;
+  transform-origin: bottom center;
+}
+
+.constellation-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 5px;
+  color: rgba(255, 211, 122, 0.85);
+  font-size: 9px;
+}
+
 /* 지난 기록. 저장된 값이 있을 때만 보인다. */
 .profile-row {
   margin-top: 4px;

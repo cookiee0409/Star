@@ -18,9 +18,13 @@ import {
   type CollectPayload,
   type FragmentCollectedPayload,
   type JoinOptions,
+  type MeteorForecastPayload,
   type MeteorImpactPayload,
   type MeteorWarningPayload,
-  type MovePayload
+  type MovePayload,
+  type ObservePayload,
+  type Point2D,
+  type ShowerStartedPayload
 } from "@starfall/shared";
 import {
   createFragmentPositions,
@@ -32,6 +36,7 @@ import {
   randomMeteorDelayMs
 } from "../systems/meteorSystem";
 import { validateAndApplyMovement } from "../systems/movementSystem";
+import { validateObservation } from "../systems/observeSystem";
 import { createScoreStore } from "../storage/ScoreStore";
 
 function readMeteorScale(): number {
@@ -94,6 +99,25 @@ export class GameRoom extends Room<{ state: GameState }> {
           byNickname: result.nickname
         };
         this.broadcast(SERVER_MESSAGES.FRAGMENT_COLLECTED, event);
+        this.addToSkyGauge();
+      }
+    );
+
+    this.onMessage(
+      CLIENT_MESSAGES.OBSERVE,
+      (client: Client, payload: ObservePayload) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !payload) {
+          return;
+        }
+        const result = validateObservation(
+          player,
+          payload.spotIndex,
+          player.hasForecast
+        );
+        if (result.ok) {
+          player.hasForecast = true;
+        }
       }
     );
 
@@ -156,6 +180,8 @@ export class GameRoom extends Room<{ state: GameState }> {
     player.nickname = sanitizeNickname(options.nickname);
     player.x = spawn.x;
     player.z = spawn.z;
+    // 가득 채워 시작한다. 0이면 입장하자마자 달릴 수 없다.
+    player.stamina = CONFIG.STAMINA_MAX;
     this.state.players.set(client.sessionId, player);
     this.lastMoveAt.set(client.sessionId, Date.now());
 
@@ -226,17 +252,97 @@ export class GameRoom extends Room<{ state: GameState }> {
     const delayMs = randomMeteorDelayMs(this.meteorIntervalScale);
     this.state.nextMeteorAt = Date.now() + delayMs;
 
+    // 낙하 지점을 지금 정한다. 예보를 정규 경고보다 먼저 보내려면 그 시점에
+    // 목표를 이미 알고 있어야 한다.
+    const target = chooseMeteorTarget();
+    this.scheduleForecast(version, target, delayMs);
+
     this.clock.setTimeout(() => {
       if (version !== this.scheduleVersion || this.clients.length === 0) {
         return;
       }
-      this.beginMeteor(version);
+      this.beginMeteor(version, target);
     }, delayMs);
   }
 
-  private beginMeteor(version: number): void {
+  /**
+   * 관측으로 예보를 받아 둔 사람에게만 조기 통보를 예약한다.
+   *
+   * 이게 관측의 보상이다. 남보다 OBSERVE_FORECAST_LEAD 초 먼저 출발할 수 있다.
+   * 대기 시간이 그보다 짧으면(유성우 등) 예보를 건너뛴다 — 이미 늦었다.
+   */
+  private scheduleForecast(
+    version: number,
+    target: Point2D,
+    delayMs: number
+  ): void {
+    const leadMs = CONFIG.OBSERVE_FORECAST_LEAD * 1000;
+    const at = delayMs - leadMs;
+    if (at <= 0) {
+      return;
+    }
+
+    this.clock.setTimeout(() => {
+      if (version !== this.scheduleVersion || this.clients.length === 0) {
+        return;
+      }
+      const payload: MeteorForecastPayload = {
+        targetX: target.x,
+        targetZ: target.z,
+        leadMs
+      };
+      for (const client of this.clients) {
+        const player = this.state.players.get(client.sessionId);
+        if (player?.hasForecast) {
+          // 한 번 쓰면 사라진다. 다시 받으려면 또 관측해야 한다.
+          player.hasForecast = false;
+          client.send(SERVER_MESSAGES.METEOR_FORECAST, payload);
+        }
+      }
+    }, at);
+  }
+
+  /**
+   * 방 공동 게이지. 누가 줍든 함께 오른다.
+   *
+   * 가득 차면 유성우가 오고 게이지는 0으로 돌아간다. 경쟁 일변도에 협력 축을
+   * 하나 얹는 장치라, 개인 점수와 달리 누구 것도 아니다.
+   */
+  private addToSkyGauge(): void {
+    if (this.state.showerActive) {
+      return;
+    }
+    this.state.skyGauge += 1;
+    if (this.state.skyGauge < CONFIG.SKY_GAUGE_GOAL) {
+      return;
+    }
+
+    this.state.skyGauge = 0;
+    this.state.showerActive = true;
+    const payload: ShowerStartedPayload = { count: CONFIG.SHOWER_METEORS };
+    this.broadcast(SERVER_MESSAGES.SHOWER_STARTED, payload);
+
+    // 예정된 별똥별을 취소하고 유성우로 대체한다. scheduleVersion 을 올리면
+    // 대기 중이던 타이머가 스스로 물러난다.
+    const version = ++this.scheduleVersion;
+    this.state.nextMeteorAt = 0;
+    for (let index = 0; index < CONFIG.SHOWER_METEORS; index += 1) {
+      const isLast = index === CONFIG.SHOWER_METEORS - 1;
+      this.clock.setTimeout(() => {
+        if (version !== this.scheduleVersion || this.clients.length === 0) {
+          return;
+        }
+        this.beginMeteor(version, chooseMeteorTarget(), isLast);
+      }, index * CONFIG.SHOWER_INTERVAL * 1000);
+    }
+  }
+
+  private beginMeteor(
+    version: number,
+    target: Point2D,
+    isLastOfShower = true
+  ): void {
     const meteorId = randomUUID();
-    const target = chooseMeteorTarget();
     const etaMs = CONFIG.METEOR_WARNING_LEAD * 1000;
     this.state.nextMeteorAt = 0;
 
@@ -255,7 +361,12 @@ export class GameRoom extends Room<{ state: GameState }> {
         return;
       }
       this.impactMeteor(meteorId, target);
-      this.scheduleNextMeteor();
+      // 유성우 중간이면 다음 별똥별은 이미 예약돼 있다. 여기서 또 예약하면
+      // 두 일정이 겹쳐 서로를 취소한다. 마지막 것만 평상시 주기로 돌아간다.
+      if (isLastOfShower) {
+        this.state.showerActive = false;
+        this.scheduleNextMeteor();
+      }
     }, impactDelayMs);
   }
 

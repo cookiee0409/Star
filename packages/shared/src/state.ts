@@ -28,6 +28,10 @@ export class PlayerState extends Schema {
    */
   @type("number") total = 0;
   @type("number") best = 0;
+  /** 남은 달리기 시간(초). 서버가 계산하고 클라이언트는 표시만 한다. */
+  @type("number") stamina = 0;
+  /** 다음 별똥별 예보를 받아 둔 상태인가. 관측으로 얻는다. */
+  @type("boolean") hasForecast = false;
 }
 
 export class FragmentState extends Schema {
@@ -40,4 +44,8 @@ export class GameState extends Schema {
   @type({ map: PlayerState }) players = new MapSchema<PlayerState>();
   @type({ map: FragmentState }) fragments = new MapSchema<FragmentState>();
   @type("number") nextMeteorAt = 0;
+  /** 방 전체가 함께 채우는 게이지. 누가 줍든 올라간다. */
+  @type("number") skyGauge = 0;
+  /** 유성우가 진행 중인가. HUD 가 이걸로 표시를 바꾼다. */
+  @type("boolean") showerActive = false;
 }

@@ -38,6 +38,34 @@ export const CONFIG = {
   CHAT_HISTORY: 10,
   /** 같은 사람이 다음 줄을 보낼 수 있을 때까지의 간격. 도배를 막는다. */
   CHAT_COOLDOWN_MS: 700,
+
+  // 스태미나 — 달리기에 대가를 붙여 "언제 달릴까"를 결정으로 만든다.
+  /** 가득 찬 상태에서 달릴 수 있는 시간(초). 맵 대각선의 절반쯤 간다. */
+  STAMINA_MAX: 4.5,
+  /** 달리는 동안 초당 소모량. 1이면 STAMINA_MAX 초만큼 달린다. */
+  STAMINA_DRAIN: 1,
+  /** 달리지 않는 동안 초당 회복량. 소모보다 느려야 아끼는 선택이 생긴다. */
+  STAMINA_RECOVER: 0.55,
+  /** 바닥난 뒤 다시 달리려면 최소 이만큼은 차 있어야 한다. 딸꾹질 방지. */
+  STAMINA_MIN_TO_RUN: 1.2,
+
+  // 관측 — 별똥별을 기다리는 빈 시간을 채운다.
+  /** 관측 지점에 이만큼 안으로 들어가야 한다(m). */
+  OBSERVE_RADIUS: 3.5,
+  /** 하늘을 이 각도 이상 올려다봐야 관측으로 친다(도, 수평이 0). */
+  OBSERVE_MIN_PITCH_DEG: 24,
+  /** 관측을 마치는 데 걸리는 시간(초). */
+  OBSERVE_SECONDS: 3,
+  /** 예보가 정규 경고보다 얼마나 먼저 오는가(초). 이게 관측의 보상이다. */
+  OBSERVE_FORECAST_LEAD: 8,
+
+  // 방 공동 목표 — 누가 줍든 함께 쌓이고, 채우면 유성우가 온다.
+  /** 게이지를 채우는 데 필요한 조각 수. */
+  SKY_GAUGE_GOAL: 24,
+  /** 유성우로 떨어지는 별똥별 수. */
+  SHOWER_METEORS: 3,
+  /** 유성우 안에서 별똥별 사이의 간격(초). */
+  SHOWER_INTERVAL: 6,
   REMOTE_INTERPOLATION: 0.16,
   NAMEPLATE_HIDE_DISTANCE: 34
 } as const;

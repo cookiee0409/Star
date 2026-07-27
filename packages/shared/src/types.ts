@@ -44,6 +44,30 @@ export interface JoinOptions {
   playerId?: string;
 }
 
+/**
+ * 관측을 마쳤다는 신고.
+ *
+ * 좌표를 보내지 않는다. 서버가 이미 플레이어 위치를 알고 있으므로 그것으로
+ * 판정한다. 클라이언트가 보낸 좌표를 믿으면 어디서든 관측했다고 우길 수 있다.
+ */
+export interface ObservePayload {
+  /** 몇 번 관측 지점이라고 주장하는가. 서버가 거리로 검증한다. */
+  spotIndex: number;
+}
+
+/** 관측한 사람에게만 가는 조기 예보. */
+export interface MeteorForecastPayload {
+  targetX: number;
+  targetZ: number;
+  /** 정규 경고까지 남은 시간(ms). */
+  leadMs: number;
+}
+
+/** 유성우 시작. */
+export interface ShowerStartedPayload {
+  count: number;
+}
+
 /** 클라이언트가 보내는 채팅. */
 export interface ChatPayload {
   text: string;

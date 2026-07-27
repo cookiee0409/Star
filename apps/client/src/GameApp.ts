@@ -10,6 +10,8 @@ import {
   SERVER_MESSAGES,
   type ChatMessagePayload,
   type FragmentCollectedPayload,
+  type MeteorForecastPayload,
+  type ShowerStartedPayload,
   type MeteorImpactPayload,
   type MeteorWarningPayload,
   type PlayerState
@@ -24,6 +26,7 @@ import {
   type CharacterPack
 } from "./player/characterAssets";
 import { LocalPlayerController } from "./player/LocalPlayerController";
+import { ObservationTracker } from "./player/ObservationTracker";
 import { PlayerAvatar } from "./player/PlayerAvatar";
 import { createWorld } from "./scene/createWorld";
 import type { UIController } from "./ui/UIController";
@@ -42,6 +45,9 @@ export class GameApp {
   private cameraShake = 0;
   private cameraShakeTime = 0;
   private readonly audio = new AudioController();
+  private observation: ObservationTracker | undefined;
+  /** 예보를 들고 있는가. 서버 상태를 그대로 따라간다. */
+  private hasForecast = false;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -178,6 +184,33 @@ export class GameApp {
     this.ui.onChat((text) => {
       room.send(CLIENT_MESSAGES.CHAT, { text });
     });
+
+    // 관측을 마치면 서버에 신고한다. 지급 여부는 서버가 자기가 아는 위치로
+    // 다시 판정하므로, 이 호출을 위조해도 소용이 없다.
+    this.observation = new ObservationTracker((spotIndex) => {
+      room.send(CLIENT_MESSAGES.OBSERVE, { spotIndex });
+      this.audio.play("fragmentSpawn");
+      this.ui.showNotice("관측 완료 · 다음 별똥별을 먼저 알려 드립니다");
+    });
+
+    room.onMessage(
+      SERVER_MESSAGES.METEOR_FORECAST,
+      (payload: MeteorForecastPayload) => {
+        const direction = this.effects?.forecast(payload) ?? "하늘";
+        this.ui.showNotice(`예보 · ${direction} 쪽에 곧 떨어집니다`);
+        this.audio.play("meteorWarning");
+      }
+    );
+    room.onMessage(
+      SERVER_MESSAGES.SHOWER_STARTED,
+      (payload: ShowerStartedPayload) => {
+        this.ui.showNotice(`유성우! 별똥별 ${payload.count}개가 연달아 옵니다`);
+        this.audio.play("meteorWarning");
+      }
+    );
+    callbacks.listen("skyGauge", (value) => {
+      this.ui.setSkyGauge(value / CONFIG.SKY_GAUGE_GOAL);
+    });
     room.onLeave((code) => {
       this.ui.showFatalError(`연결 종료 코드: ${code}`);
     });
@@ -205,6 +238,9 @@ export class GameApp {
       this.ui.setScore(player.score);
       // 지난 기록은 서버가 저장소를 읽은 뒤 채우므로 입장보다 조금 늦게 온다.
       this.ui.setProfile(player.total, player.best);
+      // 서버가 최종 판정이므로 예측값을 여기서 맞춘다.
+      this.localPlayer?.syncStamina(player.stamina);
+      this.hasForecast = player.hasForecast;
       return;
     }
     const avatar = this.remotePlayers.get(sessionId);
@@ -239,6 +275,23 @@ export class GameApp {
     if (this.sendAccumulator >= sendInterval) {
       this.sendAccumulator %= sendInterval;
       sendMove(localPlayer.snapshot());
+    }
+
+    this.ui.setStamina(localPlayer.staminaRatio);
+
+    const observation = this.observation?.update(
+      deltaSeconds,
+      localPlayer.avatar.root.position,
+      camera.lookUpDegrees,
+      this.hasForecast
+    );
+    if (observation) {
+      this.ui.setObservation(
+        observation.spotIndex !== undefined,
+        observation.progress,
+        observation.needsLookUp,
+        this.hasForecast
+      );
     }
 
     const nearest = effects.nearestFragment(localPlayer.avatar.root.position);

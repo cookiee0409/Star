@@ -11,7 +11,12 @@ import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { Scene } from "@babylonjs/core/scene";
 // mesh.renderOutline 은 이 모듈이 붙여 주는 기능이라 부수효과 import 가 필요하다.
 import "@babylonjs/core/Rendering/outlineRenderer";
-import { CONFIG, WORLD_OBSTACLES, isWalkable } from "@starfall/shared";
+import {
+  CONFIG,
+  OBSERVE_POINTS,
+  WORLD_OBSTACLES,
+  isWalkable
+} from "@starfall/shared";
 import { createSunShadows } from "./shadows";
 import { SKY_HORIZON, getSkyTexture } from "./skyTexture";
 import {
@@ -425,6 +430,50 @@ export async function createWorld(scene: Scene): Promise<void> {
     marker.material = starMaterial;
   });
 
+  createObservePads(scene);
   scatterDecorations(templates);
+}
+
+/**
+ * 관측 지점 표시.
+ *
+ * 보이지 않으면 찾아갈 수가 없다. 바닥에 옅은 원반을 깔고 가운데에 기둥을
+ * 세워 멀리서도 위치를 알아보게 한다. 충돌 판정은 없다 — 서버의
+ * WORLD_OBSTACLES 에 없는 것은 그냥 통과한다.
+ */
+function createObservePads(scene: Scene): void {
+  const padMaterial = makeMaterial(
+    "observe-pad",
+    scene,
+    new Color3(0.36, 0.52, 0.4),
+    new Color3(0.06, 0.14, 0.13)
+  );
+  const markMaterial = makeMaterial(
+    "observe-mark",
+    scene,
+    new Color3(0.62, 0.86, 0.84),
+    new Color3(0.22, 0.42, 0.42)
+  );
+
+  OBSERVE_POINTS.forEach((spot, index) => {
+    const pad = MeshBuilder.CreateCylinder(
+      `observe-pad-${index}`,
+      { diameter: CONFIG.OBSERVE_RADIUS * 2, height: 0.06, tessellation: 24 },
+      scene
+    );
+    pad.position.set(spot.x, 0.03, spot.z);
+    pad.material = padMaterial;
+    pad.isPickable = false;
+
+    const mark = MeshBuilder.CreateCylinder(
+      `observe-mark-${index}`,
+      { diameterTop: 0.05, diameterBottom: 0.34, height: 2.2, tessellation: 8 },
+      scene
+    );
+    mark.position.set(spot.x, 1.1, spot.z);
+    mark.material = markMaterial;
+    mark.isPickable = false;
+    addOutline(mark, 0.04);
+  });
 }
 

@@ -132,4 +132,9 @@ export class GameCamera {
   flattenedForward(): Vector3 {
     return new Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
   }
+
+  /** 시선이 수평보다 얼마나 위를 향하는가(도). 아래를 보면 음수. */
+  get lookUpDegrees(): number {
+    return (-this.pitch * 180) / Math.PI;
+  }
 }

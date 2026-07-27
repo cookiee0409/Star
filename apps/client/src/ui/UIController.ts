@@ -1,4 +1,9 @@
-import { CONFIG, isValidNickname, sanitizeNickname } from "@starfall/shared";
+import {
+  CONFIG,
+  constellationProgress,
+  isValidNickname,
+  sanitizeNickname
+} from "@starfall/shared";
 import { ServerUrlError } from "../net/serverUrl";
 
 type StatusTone = "idle" | "connecting" | "online" | "error";
@@ -27,6 +32,18 @@ export class UIController {
   private readonly hudProfile = requireElement<HTMLElement>("hud-profile");
   private readonly hudTotal = requireElement<HTMLElement>("hud-total");
   private readonly hudBest = requireElement<HTMLElement>("hud-best");
+  private readonly staminaFill = requireElement<HTMLElement>("stamina-fill");
+  private readonly gaugeFill = requireElement<HTMLElement>("gauge-fill");
+  private readonly hudConstellation =
+    requireElement<HTMLElement>("hud-constellation");
+  private readonly constellationName =
+    requireElement<HTMLElement>("constellation-name");
+  private readonly constellationProgressLabel =
+    requireElement<HTMLElement>("constellation-progress");
+  private readonly observeHint = requireElement<HTMLElement>("observe-hint");
+  private readonly observeFill = requireElement<HTMLElement>("observe-fill");
+  private readonly observeTitle = requireElement<HTMLElement>("observe-title");
+  private readonly observeNote = requireElement<HTMLElement>("observe-note");
   private readonly hudPlayers = requireElement<HTMLElement>("hud-players");
   private readonly hudTimer = requireElement<HTMLElement>("hud-timer");
   private readonly collectPrompt = requireElement<HTMLElement>("collect-prompt");
@@ -197,11 +214,68 @@ export class UIController {
   setProfile(total: number, best: number): void {
     if (total <= 0 && best <= 0) {
       this.hudProfile.classList.add("is-hidden");
+      this.hudConstellation.classList.add("is-hidden");
       return;
     }
     this.hudTotal.textContent = String(total);
     this.hudBest.textContent = String(best);
     this.hudProfile.classList.remove("is-hidden");
+
+    // 별자리 도감. 누적 개수로 진척이 정해지므로 따로 저장할 게 없다.
+    const { current, previousRequired } = constellationProgress(total);
+    if (!current) {
+      this.constellationName.textContent = "도감 완성";
+      this.constellationProgressLabel.textContent = "";
+    } else {
+      const done = total - previousRequired;
+      const need = current.required - previousRequired;
+      this.constellationName.textContent = current.name;
+      this.constellationProgressLabel.textContent = `${done} / ${need}`;
+    }
+    this.hudConstellation.classList.remove("is-hidden");
+  }
+
+  /** 남은 달리기(0~1). */
+  setStamina(ratio: number): void {
+    const clamped = Math.min(1, Math.max(0, ratio));
+    this.staminaFill.style.transform = `scaleX(${clamped})`;
+    this.staminaFill.dataset.empty = String(clamped <= 0.001);
+  }
+
+  /** 방 공동 게이지(0~1). */
+  setSkyGauge(ratio: number): void {
+    const clamped = Math.min(1, Math.max(0, ratio));
+    this.gaugeFill.style.transform = `scaleX(${clamped})`;
+  }
+
+  /**
+   * 관측 상태.
+   *
+   * 지점 밖이면 통째로 숨긴다. 안내가 화면에 계속 떠 있으면 잔소리가 된다.
+   */
+  setObservation(
+    inside: boolean,
+    progress: number,
+    needsLookUp: boolean,
+    hasForecast: boolean
+  ): void {
+    this.observeHint.classList.toggle("is-hidden", !inside);
+    if (!inside) {
+      return;
+    }
+    this.observeFill.style.transform = `scaleY(${Math.min(1, Math.max(0, progress))})`;
+
+    if (hasForecast) {
+      this.observeTitle.textContent = "예보를 받아 두었습니다";
+      this.observeNote.textContent = "다음 별똥별을 먼저 알려 드립니다";
+      return;
+    }
+    this.observeTitle.textContent = needsLookUp
+      ? "하늘을 올려다보세요"
+      : "관측 중…";
+    this.observeNote.textContent = needsLookUp
+      ? "우클릭 드래그로 시점을 위로"
+      : "다음 별똥별 위치를 먼저 알게 됩니다";
   }
 
   setPlayerCount(count: number): void {

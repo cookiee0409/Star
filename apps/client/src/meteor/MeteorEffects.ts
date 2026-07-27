@@ -8,6 +8,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import {
   CONFIG,
   type MeteorImpactPayload,
+  type MeteorForecastPayload,
   type MeteorWarningPayload,
   type Point2D
 } from "@starfall/shared";
@@ -150,6 +151,18 @@ export class MeteorEffects {
       fallStartsAt: performance.now() + payload.etaMs
     });
     return this.directionLabel(target);
+  }
+
+  /**
+   * 관측으로 얻은 조기 예보. 방향만 알려 주고 연출은 만들지 않는다.
+   *
+   * 별똥별은 아직 하늘에 없다. 여기서 궤적을 띄우면 예보를 받은 사람만
+   * 실제와 다른 화면을 보게 된다.
+   */
+  forecast(payload: MeteorForecastPayload): string {
+    return this.directionLabel(
+      new Vector3(payload.targetX, 0.6, payload.targetZ)
+    );
   }
 
   impact(payload: MeteorImpactPayload, playerPosition?: Vector3): number {

@@ -78,6 +78,13 @@
           누적 <strong id="hud-total">0</strong> · 최고
           <strong id="hud-best">0</strong>
         </div>
+        <div class="meter stamina-meter" title="달리기">
+          <div id="stamina-fill" class="meter-fill"></div>
+        </div>
+        <div id="hud-constellation" class="constellation-row is-hidden">
+          <span id="constellation-name">첫 별</span>
+          <span id="constellation-progress">0 / 1</span>
+        </div>
       </div>
 
       <div class="hud-card room-card">
@@ -89,6 +96,23 @@
         <div class="room-stat timer-stat">
           <span class="hud-label">NEXT STAR</span>
           <strong id="hud-timer">—</strong>
+        </div>
+        <div class="room-divider"></div>
+        <div class="room-stat">
+          <span class="hud-label">SKY GAUGE</span>
+          <div class="meter gauge-meter">
+            <div id="gauge-fill" class="meter-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="observe-hint" class="observe-hint is-hidden">
+        <div class="observe-ring">
+          <div id="observe-fill" class="observe-fill"></div>
+        </div>
+        <div>
+          <strong id="observe-title">하늘을 올려다보세요</strong>
+          <span id="observe-note">우클릭 드래그로 시점을 위로</span>
         </div>
       </div>
 
